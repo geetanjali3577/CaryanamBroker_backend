@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Socket Chat</title>
+</head>
+<body>
+
+<h2>Chat</h2>
+<p id="info"></p>
+
+<input type="text" id="msg" placeholder="Enter message">
+<button onclick="sendMessage()">Send</button>
+
+<ul id="messages"></ul>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+
+<script>
+
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // ✅ REQUIRED PARAMS
+  const USER_ID = urlParams.get("userId");
+  const OWNER_ID = urlParams.get("ownerId");
+
+  // ❌ Stop if missing
+  if (!USER_ID && !OWNER_ID) {
+    alert("Pass either userId or ownerId in URL");
+    throw new Error("Missing params");
+  }
+
+  const RECEIVER_ID_PARAM = urlParams.get("receiverId");
+
+  // ❌ Stop if receiverId missing
+  if (!RECEIVER_ID_PARAM || isNaN(RECEIVER_ID_PARAM)) {
+    alert("Pass receiverId in URL");
+    throw new Error("Missing receiverId");
+  }
+
+  const RECEIVER_ID = Number(RECEIVER_ID_PARAM);
+
+  let CURRENT_ID, IS_OWNER = false;
+
+  // ✅ determine role
+  if (USER_ID) {
+    CURRENT_ID = Number(USER_ID);
+    document.getElementById("info").innerText = "USER: " + CURRENT_ID;
+  } else {
+    CURRENT_ID = Number(OWNER_ID);
+    IS_OWNER = true;
+    document.getElementById("info").innerText = "OWNER: " + CURRENT_ID;
+  }
+
+  // ❌ Prevent 0 IDs
+  if (CURRENT_ID <= 0 || RECEIVER_ID <= 0) {
+    alert("Invalid IDs");
+    throw new Error("Invalid ID");
+  }
+
+  // ✅ correct roomId
+  const ROOM_ID = `USER_${Math.min(CURRENT_ID, RECEIVER_ID)}_OWNER_${Math.max(CURRENT_ID, RECEIVER_ID)}`;
+
+  console.log("CURRENT_ID:", CURRENT_ID);
+  console.log("RECEIVER_ID:", RECEIVER_ID);
+  console.log("ROOM_ID:", ROOM_ID);
+
+  // ================= SOCKET =================
+  const socket = io("http://localhost:9092", {
+    transports: ["polling", "websocket"],
+    query: IS_OWNER ? { ownerId: CURRENT_ID } : { userId: CURRENT_ID }
+  });
+
+  // ================= CONNECT =================
+  socket.on("connect", () => {
+    console.log("Connected:", socket.id);
+    socket.emit("join_room", ROOM_ID);
+  });
+
+  // ================= RECEIVE =================
+  socket.on("receive_message", (data) => {
+
+    console.log("RECEIVED:", data);
+
+    if (data.roomId !== ROOM_ID) return;
+
+    const li = document.createElement("li");
+
+    if (data.senderId === CURRENT_ID) {
+      li.innerText = "YOU: " + data.message;
+    } else {
+      li.innerText = IS_OWNER ? "USER: " : "OWNER: ";
+      li.innerText += data.message;
+    }
+
+    document.getElementById("messages").appendChild(li);
+  });
+
+  // ================= SEND =================
+  function sendMessage() {
+    const msg = document.getElementById("msg").value.trim();
+
+    if (!msg) return;
+
+    const payload = {
+      userId: IS_OWNER ? RECEIVER_ID : CURRENT_ID,
+      ownerId: IS_OWNER ? CURRENT_ID : RECEIVER_ID,
+      senderRole: IS_OWNER ? "PROPERTY_OWNER" : "USER",
+      message: msg
+    };
+
+    console.log("SENDING:", payload);
+
+    socket.emit("send_message", payload);
+
+    document.getElementById("msg").value = "";
+  }
+
+
+</script>
+
+</body>
+</html>

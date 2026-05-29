@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Like Property Test</title>
+
+    <style>
+
+        body {
+            font-family: Arial;
+            background: #f5f5f5;
+            padding: 30px;
+        }
+
+        .card {
+            width: 320px;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .card img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+        }
+
+        .content {
+            padding: 15px;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .location {
+            color: gray;
+            margin-top: 5px;
+        }
+
+        .price {
+            color: orange;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .like-btn {
+            margin-top: 20px;
+            border: none;
+            background: #f1f1f1;
+            padding: 10px 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .liked-box {
+            margin-top: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            width: 400px;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .liked-item {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<h1>❤️ Property Like Testing</h1>
+
+<!-- PROPERTY CARD -->
+<div class="card">
+
+    <img
+            src="https://images.unsplash.com/photo-1568605114967-8130f3a36994"
+    />
+
+    <div class="content">
+
+        <div class="title">
+            Luxury Apartment
+        </div>
+
+        <div class="location">
+            Pune, Maharashtra
+        </div>
+
+        <div class="price">
+            ₹ 25,000
+        </div>
+
+        <button
+                class="like-btn"
+                onclick="likeProperty()"
+                id="likeBtn"
+        >
+            🤍 Like
+        </button>
+
+    </div>
+
+</div>
+
+<!-- LIKED COUNT -->
+<h2 id="likedCount">
+    ❤️ 0 Liked Properties
+</h2>
+
+<!-- LIKED PROPERTIES -->
+<div class="liked-box">
+
+    <h3>Liked Properties</h3>
+
+    <div id="likedPropertiesList">
+
+    </div>
+
+</div>
+
+<script>
+
+    // CHANGE THIS
+    const token =
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZXNobWFkYXNtb2hhcGF0cmFAZ21haWwuY29tIiwiZnVsbE5hbWUiOiJyZXNobWEiLCJyb2xlIjoiUk9MRV9VU0VSIiwiZGV2aWNlVHlwZSI6IldFQiIsImlkIjoxLCJpYXQiOjE3Nzk3MTQ4NzgsImV4cCI6MTc3OTcxODQ3OH0.2AGdQtLntLtrHTWA_fRooolN6bZa8kuP2NHQZ8bywOs";
+
+    // CHANGE THIS
+    const propertyId = 1;
+
+    // LIKE PROPERTY
+    async function likeProperty() {
+
+        try {
+
+            const response = await fetch(
+                `http://localhost:8080/api/user/likeProperty/${propertyId}`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Authorization":
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+            const data = await response.json();
+
+            console.log(data);
+
+            alert("Property Liked Successfully");
+
+            getLikedProperties();
+
+        } catch (error) {
+
+            console.log(error);
+
+            alert("Error");
+
+        }
+    }
+
+    // GET LIKED PROPERTIES
+    async function getLikedProperties() {
+
+        try {
+
+            const response = await fetch(
+                "http://localhost:8080/api/user/likedProperties",
+                {
+                    method: "GET",
+
+                    headers: {
+                        "Authorization":
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+            const result = await response.json();
+
+            const properties =
+                result.data || [];
+
+            // COUNT
+            document.getElementById(
+                "likedCount"
+            ).innerHTML =
+                `❤️ ${properties.length} Liked Properties`;
+
+            // LIST
+            let html = "";
+
+            properties.forEach((property) => {
+
+                html += `
+                    <div class="liked-item">
+
+                        <h4>${property.title}</h4>
+
+                        <p>
+                            ${property.location}
+                        </p>
+
+                        <p>
+                            ₹ ${property.price}
+                        </p>
+
+                    </div>
+                `;
+            });
+
+            document.getElementById(
+                "likedPropertiesList"
+            ).innerHTML = html;
+
+        } catch (error) {
+
+            console.log(error);
+
+        }
+    }
+
+    // AUTO LOAD
+    getLikedProperties();
+
+</script>
+
+</body>
+
+</html>
+
