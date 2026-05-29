@@ -18,6 +18,8 @@ public class ChatRoom {
     @Column(unique = true)
     private String roomId; // userId_ownerId
 
+    private String userFullName;
+
     @Column(nullable = false)
     private boolean firstMessageSent = false;
 
@@ -25,5 +27,6 @@ public class ChatRoom {
     private boolean accepted = false;
 
     private boolean isRejected;
+
 
 }
