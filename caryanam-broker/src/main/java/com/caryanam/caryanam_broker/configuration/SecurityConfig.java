@@ -214,8 +214,11 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "http://localhost:3000",
                 "http://localhost:63342",
-                "https://caryanambroker.vercel.app",
-                "https://r1.rentalchaavi.com"
+                "https://rentalchaavi.netlify.app",
+                "https://r1.rentalchaavi.com",
+                "https://rentalchaavi.com"
+
+
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("*"));
