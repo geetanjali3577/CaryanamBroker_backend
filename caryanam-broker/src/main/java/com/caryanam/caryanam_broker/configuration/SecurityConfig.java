@@ -216,6 +216,7 @@ public class SecurityConfig {
                 "http://localhost:63342",
                 "https://rentalchaavi.netlify.app",
                 "https://r1.rentalchaavi.com",
+                "https://r2.rentalchaavi.com",
                 "https://rentalchaavi.com"
 
 

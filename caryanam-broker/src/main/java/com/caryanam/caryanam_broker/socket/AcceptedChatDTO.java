@@ -18,23 +18,16 @@ public class AcceptedChatDTO {
 
     private String time;
 
-    public AcceptedChatDTO(String roomId, Long userId, Long ownerId, String userFullName,
-
-                           String lastMessage) {
+    public AcceptedChatDTO(String roomId, Long userId, Long ownerId,
+                           String userFullName, String lastMessage,
+                           String time) {
 
         this.roomId = roomId;
-
         this.userId = userId;
-
         this.ownerId = ownerId;
-
         this.userFullName = userFullName;
-
         this.lastMessage = lastMessage;
-
         this.time = time;
-
     }
-
 
 }

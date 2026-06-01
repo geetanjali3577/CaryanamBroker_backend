@@ -36,6 +36,9 @@ public class ChatServiceImpl implements ChatService {
     @Autowired
     private UserStatusRepository statusRepo;
 
+    @Autowired
+    private UserRepository userRepository;
+
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -305,23 +308,35 @@ public MessageResponseDTO sendMessage(MessageRequestDTO dto) {
         List<AcceptedChatDTO> response = new ArrayList<>();
 
         for (ChatRoom room : rooms) {
+
             Message lastMsg = messageRepo.findTopByRoomIdOrderByTimestampDesc(room.getRoomId());
+
             String lastMessage = "";
             String time = "";
 
             if (lastMsg != null) {
                 lastMessage = lastMsg.getContent();
+
                 if (lastMsg.getTimestamp() != null) {
                     time = lastMsg.getTimestamp().toString();
                 }
             }
 
+            User user = userRepository.findById(room.getUserId())
+                    .orElse(null);
+
+            String userFullName = user != null
+                    ? user.getFullName()
+                    : "Unknown User";
+
             response.add(new AcceptedChatDTO(
                     room.getRoomId(),
                     room.getUserId(),
                     room.getOwnerId(),
+                    userFullName,
                     lastMessage,
-                    time));
+                    time
+            ));
         }
 
         return response;

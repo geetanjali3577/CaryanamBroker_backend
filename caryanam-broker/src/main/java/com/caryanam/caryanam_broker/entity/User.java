@@ -33,7 +33,7 @@ public class User {
 
 //    @Column(nullable = false)
 //    private String premiumStatus = "NONE";
-@Column(columnDefinition = "TEXT")
-private String premiumStatus = "";
+    @Column(columnDefinition = "TEXT")
+    private String premiumStatus = "";
     private String isActive;
 }

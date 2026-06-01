@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Owner Panel</title>
+</head>
+<body>
+
+<h2>Owner Panel</h2>
+
+<input type="number" id="ownerId" placeholder="Owner ID">
+<button onclick="loadPending()">Load Pending</button>
+
+<div id="chatList"></div>
+
+<script>
+
+    function loadPending() {
+
+        let ownerId = document.getElementById("ownerId").value;
+
+        fetch(`http://localhost:8080/api/chat/pending/${ownerId}`)
+        .then(res => res.json())
+        .then(data => {
+
+            let html = "";
+
+            data.data.forEach(chat => {
+
+                html += `
+                <div style="border:1px solid black;padding:10px;margin:10px;">
+                    <p><b>Room:</b> ${chat.roomId}</p>
+                    <p><b>User:</b> ${chat.userId}</p>
+                    <p><b>Message:</b> ${chat.lastMessage}</p>
+
+                    <button onclick="acceptChat('${chat.roomId}')">
+                        Accept
+                    </button>
+
+                    <button onclick="rejectChat('${chat.roomId}')">
+                        Reject
+                    </button>
+                </div>
+                `;
+            });
+
+            document.getElementById("chatList").innerHTML = html;
+        });
+    }
+
+    function acceptChat(roomId) {
+
+        fetch("http://localhost:8080/api/chat/accept", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                roomId: roomId,
+                senderRole: "PROPERTY_OWNER"
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            loadPending();
+        });
+    }
+
+    function rejectChat(roomId) {
+
+        fetch("http://localhost:8080/api/chat/reject", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                roomId: roomId,
+                senderRole: "PROPERTY_OWNER"
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            loadPending();
+        });
+    }
+
+</script>
+
+</body>
+</html>

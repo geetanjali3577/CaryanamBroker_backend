@@ -23,7 +23,7 @@ public class MailConfig {
 
         mailSender.setUsername("rentalchaavi@gmail.com");
 
-        mailSender.setPassword("nwfqiaxtujilxjpx");
+        mailSender.setPassword("sndlqhrqgaryeexe");
 
         Properties props =
                 mailSender.getJavaMailProperties();
