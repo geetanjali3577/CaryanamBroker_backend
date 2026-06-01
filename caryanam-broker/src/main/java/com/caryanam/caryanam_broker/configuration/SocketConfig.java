@@ -23,7 +23,9 @@ public class SocketConfig {
 
         //  BASIC CONFIG
          config.setHostname("localhost");
-                config.setHostname("0.0.0.0");
+         config.setHostname("0.0.0.0");
+         config.setOrigin("*");
+
         config.setPort(9092);
 
 
