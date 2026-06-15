@@ -17,16 +17,15 @@ public class MailConfig {
         JavaMailSenderImpl mailSender =
                 new JavaMailSenderImpl();
 
-        mailSender.setHost("smtp.gmail.com");
+        mailSender.setHost("smtp.hostinger.com");
 
-        mailSender.setPort(587);
+        mailSender.setPort(465);
 
-        mailSender.setUsername("rentalchaavi@gmail.com");
+        mailSender.setUsername("support@rentalchaavi.com");
 
-        mailSender.setPassword("sndlqhrqgaryeexe");
+        mailSender.setPassword("Kharadi@6006");
 
-        Properties props =
-                mailSender.getJavaMailProperties();
+        Properties props = mailSender.getJavaMailProperties();
 
         props.put("mail.transport.protocol", "smtp");
 
