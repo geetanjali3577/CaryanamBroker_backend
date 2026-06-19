@@ -408,6 +408,8 @@ public class AuthServiceImpl implements AuthService {
 
         SimpleMailMessage message = new SimpleMailMessage();
 
+        message.setFrom("support@rentalchaavi.com");
+
         message.setTo(dto.getEmail());
 
         message.setSubject("Forgot Password OTP");
