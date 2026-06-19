@@ -611,29 +611,17 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // SEND MAIL
-        SimpleMailMessage message =
-                new SimpleMailMessage();
-
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom("support@rentalchaavi.com");
         message.setTo(email);
-
         message.setSubject("Email Verification OTP");
-
         message.setText(
-
-                "Hello User,\n\n" +
-
+                       "Hello User,\n\n" +
                         "Your email verification OTP is: " + otp + "\n\n" +
-
                         "This OTP is valid for 5 minutes.\n\n" +
-
                         "Please do not share this OTP with anyone.\n\n" +
-
                         "Thank you,\n" +
-
-                        "Support Team"
-
-        );
-
+                        "Support Team");
         javaMailSender.send(message);
     }
 

@@ -14,28 +14,28 @@ public class MailConfig {
     @Bean
     public JavaMailSender javaMailSender() {
 
-        JavaMailSenderImpl mailSender =
-                new JavaMailSenderImpl();
+        JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
 
         mailSender.setHost("smtp.hostinger.com");
-
         mailSender.setPort(465);
 
         mailSender.setUsername("support@rentalchaavi.com");
 
+        // Password madhye extra space nako
         mailSender.setPassword("Kharadi@6006");
 
         Properties props = mailSender.getJavaMailProperties();
 
         props.put("mail.transport.protocol", "smtp");
-
         props.put("mail.smtp.auth", "true");
 
-        props.put("mail.smtp.starttls.enable", "true");
+        // Port 465 sathi SSL enable
+        props.put("mail.smtp.ssl.enable", "true");
 
-        props.put("mail.smtp.starttls.required", "true");
+        // STARTTLS disable
+        props.put("mail.smtp.starttls.enable", "false");
 
-        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+        props.put("mail.smtp.ssl.trust", "smtp.hostinger.com");
 
         props.put("mail.debug", "true");
 
