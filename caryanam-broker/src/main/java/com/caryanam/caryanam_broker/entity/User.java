@@ -30,9 +30,14 @@ public class User {
     private Integer propertyLimit = 1;
     @Column(nullable = false)
     private boolean premiumActive = false;
+    private String phonePeOrderId;
 
-//    @Column(nullable = false)
-//    private String premiumStatus = "NONE";
+    private String phonePeTransactionId;
+
+    private String paymentStatus; // PENDING, SUCCESS, FAILED
+
+    private Double premiumAmount;
+
     @Column(columnDefinition = "TEXT")
     private String premiumStatus = "";
     private String isActive;

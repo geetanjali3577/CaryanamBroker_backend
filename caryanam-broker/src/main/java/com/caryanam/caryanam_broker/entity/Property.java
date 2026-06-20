@@ -57,4 +57,10 @@ public class Property {
     @Column(updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
+    private Double paymentAmount;
+
+    private String paymentOrderId;
+
+    private String paymentTransactionId;
+    private LocalDateTime paymentDate;
    }

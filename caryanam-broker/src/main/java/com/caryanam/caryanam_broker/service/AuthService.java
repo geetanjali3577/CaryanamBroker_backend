@@ -3,7 +3,8 @@ package com.caryanam.caryanam_broker.service;
 import com.caryanam.caryanam_broker.dto.*;
 
 
-public interface AuthService {
+public interface
+AuthService {
 
     RegisterResponseDTO registerUser(RegisterRequestDTO dto);
 

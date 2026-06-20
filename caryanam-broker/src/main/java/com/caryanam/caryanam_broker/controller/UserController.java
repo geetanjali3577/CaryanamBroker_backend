@@ -1,12 +1,14 @@
 package com.caryanam.caryanam_broker.controller;
 
 import com.caryanam.caryanam_broker.configuration.CustomUserDetails;
+import com.caryanam.caryanam_broker.dto.PremiumPaymentResponseDto;
 import com.caryanam.caryanam_broker.dto.PropertyDto;
 import com.caryanam.caryanam_broker.dto.PropertyFilterDto;
 import com.caryanam.caryanam_broker.dto.ResponseHandler;
 import com.caryanam.caryanam_broker.entity.User;
 import com.caryanam.caryanam_broker.messageconfig.MessageConfig;
 import com.caryanam.caryanam_broker.repository.UserRepository;
+import com.caryanam.caryanam_broker.service.PhonePeService;
 import com.caryanam.caryanam_broker.service.PropertyService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +26,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/user")
 public class UserController {
-
+    @Autowired
+    private PhonePeService phonePeService;
     @Autowired
     private UserRepository userRepository;
 
@@ -99,14 +102,23 @@ public class UserController {
 
         userRepository.save(user);
 
-        String qrUrl = "http://localhost:8080/qr/payment.png";
+//        //String qrUrl = "http://localhost:8080/qr/payment.png";
+//
+//        Map<String, Object> response = new HashMap<>();
+//        response.put("message", MessageConfig.SCAN_QR);
+//        response.put("qrCode", qrUrl);
+//
+//        return ResponseHandler.generateResponse(MessageConfig.PAYMENT_INITIATED, HttpStatus.OK, response);
+//
+        PremiumPaymentResponseDto response =
+                phonePeService.createPremiumOrder(userId);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", MessageConfig.SCAN_QR);
-        response.put("qrCode", qrUrl);
+        return ResponseHandler.generateResponse(
+                "Payment Initiated",
+                HttpStatus.OK,
+                response);
+}
 
-        return ResponseHandler.generateResponse(MessageConfig.PAYMENT_INITIATED, HttpStatus.OK, response);
-    }
 
     @GetMapping("/properties/{userId}")
     public ResponseEntity<Object> getProperties(@PathVariable Long userId, HttpServletRequest request) {
@@ -213,5 +225,26 @@ public class UserController {
         response.put("premiumActive", user.isPremiumActive() || "APPROVED".equals(premiumStatus));
         return ResponseHandler.generateResponse("User fetched successfully", HttpStatus.OK, response);
     }
+//--------------------------------
+@PostMapping("/payment-success")
+public ResponseEntity<Object> paymentSuccess(
+        @RequestParam String orderId,
+        @RequestParam String transactionId) {
 
+    phonePeService.paymentSuccess(
+            orderId,
+            transactionId);
+
+    return ResponseHandler.generateResponse(
+            "Payment Success",
+            HttpStatus.OK,
+            null);
+}
+
+    @GetMapping("/token")
+    public ResponseEntity<?> token() {
+
+        return ResponseEntity.ok(
+                phonePeService.getAccessToken());
+    }
 }

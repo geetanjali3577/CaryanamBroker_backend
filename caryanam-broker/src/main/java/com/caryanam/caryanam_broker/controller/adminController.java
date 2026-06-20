@@ -80,7 +80,9 @@ public class adminController {
             for (Property property : properties) {
 
                 // ONLY PENDING PROPERTY
-                if ("PENDING".equalsIgnoreCase(
+//                if ("PENDING".equalsIgnoreCase(
+//                        property.getPaymentStatus())) {
+                if ("SUCCESS".equalsIgnoreCase(
                         property.getPaymentStatus())) {
 
                     Map<String, Object> map =
@@ -160,6 +162,7 @@ public class adminController {
         status = status.replaceFirst("PENDING", "APPROVED");
 
         owner.setPremiumStatus(status);
+        owner.setPremiumStatus(status);
         owner.setPremiumActive(true);
 
         propertyOwnerRepository.save(owner);
@@ -202,7 +205,13 @@ public class adminController {
 
             return ResponseHandler.generateResponse("No pending premium request found", HttpStatus.BAD_REQUEST, null);
         }
+        if(!"SUCCESS".equals(user.getPaymentStatus())){
 
+            return ResponseHandler.generateResponse(
+                    "Payment not completed",
+                    HttpStatus.BAD_REQUEST,
+                    null);
+        }
         user.setPremiumStatus("APPROVED");
         user.setPremiumActive(true);
 
@@ -321,9 +330,17 @@ public class adminController {
             return ResponseHandler.generateResponse("Property not found", HttpStatus.BAD_REQUEST, null);
         }
 
-        if (!"PENDING".equalsIgnoreCase(property.getPaymentStatus())) {
+//        if (!"PENDING".equalsIgnoreCase(property.getPaymentStatus())) {
+//            return ResponseHandler.generateResponse(
+//                    "Property is not in pending status",
+//                    HttpStatus.BAD_REQUEST,
+//                    null
+//            );
+//        }
+        if (!"SUCCESS".equalsIgnoreCase(property.getPaymentStatus())) {
+
             return ResponseHandler.generateResponse(
-                    "Property is not in pending status",
+                    "Payment not completed",
                     HttpStatus.BAD_REQUEST,
                     null
             );

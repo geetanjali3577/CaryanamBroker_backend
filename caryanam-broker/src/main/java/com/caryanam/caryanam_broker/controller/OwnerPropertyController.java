@@ -4,10 +4,7 @@ import com.caryanam.caryanam_broker.configuration.CustomUserDetails;
 import com.caryanam.caryanam_broker.dto.PropertyDto;
 import com.caryanam.caryanam_broker.dto.ResponseDto;
 import com.caryanam.caryanam_broker.dto.ResponseHandler;
-import com.caryanam.caryanam_broker.entity.AreaPincode;
-import com.caryanam.caryanam_broker.entity.Property;
-import com.caryanam.caryanam_broker.entity.PropertyImage;
-import com.caryanam.caryanam_broker.entity.PropertyOwner;
+import com.caryanam.caryanam_broker.entity.*;
 import com.caryanam.caryanam_broker.messageconfig.MessageConfig;
 import com.caryanam.caryanam_broker.repository.*;
 import com.caryanam.caryanam_broker.service.PropertyService;
@@ -21,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +32,7 @@ public class OwnerPropertyController {
     @Autowired private PropertyImageRepository propertyImageRepository;
     @Autowired private PropertyOwnerRepository propertyOwnerRepository;
     @Autowired private PropertyRepository propertyRepository;
+    @Autowired private PaymentTransactionRepository paymentRepo;
     @Autowired
     private AreaPincodeRepository areaPincodeRepository;
 
@@ -367,120 +366,219 @@ public class OwnerPropertyController {
         );
     }
 
-    @PostMapping("/buyPremiumByOwner/{ownerId}")
-    public ResponseEntity<Object> buyPremium(
-            @PathVariable Long ownerId,
-            @RequestParam(required = false) Long propertyId) {
+//    @PostMapping("/buyPremiumByOwner/{ownerId}")
+//    public ResponseEntity<Object> buyPremium(
+//            @PathVariable Long ownerId,
+//            @RequestParam(required = false) Long propertyId) {
+//
+//        PropertyOwner owner =
+//                propertyOwnerRepository
+//                        .findById(ownerId)
+//                        .orElse(null);
+//
+//        if (owner == null) {
+//
+//            return ResponseHandler.generateResponse(
+//                    MessageConfig.OWNER_NOT_FOUND,
+//                    HttpStatus.BAD_REQUEST,
+//                    null
+//            );
+//        }
+//
+//        // GET ALL OWNER PROPERTIES
+//        List<Property> properties =
+//                propertyRepository
+//                        .findByPropertyOwner_OwnerIdOrderByCreatedAtDesc(ownerId);
+//
+//        // IF PROPERTY ID IS PROVIDED, ONLY CHECK THAT PROPERTY
+//        if (propertyId != null) {
+//            Property specificProperty = propertyRepository.findById(propertyId).orElse(null);
+//
+//            if (specificProperty == null) {
+//                return ResponseHandler.generateResponse(
+//                        "Property not found",
+//                        HttpStatus.BAD_REQUEST,
+//                        null
+//                );
+//            }
+//
+//            // CHECK IF THIS SPECIFIC PROPERTY IS ALREADY APPROVED
+//            if ("APPROVED".equalsIgnoreCase(specificProperty.getPaymentStatus())) {
+//                return ResponseHandler.generateResponse(
+//                        "Property already approved",
+//                        HttpStatus.BAD_REQUEST,
+//                        null
+//                );
+//            }
+//
+//            // SET PENDING FOR THIS SPECIFIC PROPERTY ONLY
+//            specificProperty.setPaymentStatus("PENDING");
+//            propertyRepository.save(specificProperty);
+//
+//            // UPDATE OWNER STATUS
+//            String status = owner.getPremiumStatus();
+//            if (status == null || status.isEmpty()) {
+//                owner.setPremiumStatus("PENDING");
+//            } else if (!status.contains("PENDING")) {
+//                owner.setPremiumStatus(status + ",PENDING");
+//            }
+//            owner.setPremiumCount(owner.getPremiumCount() + 1);
+//            propertyOwnerRepository.save(owner);
+//
+//            String qrUrl = "http://localhost:8080/qr/payment.png";
+//            Map<String, Object> response = new HashMap<>();
+//            response.put("message", MessageConfig.SCAN_QR);
+//            response.put("qrCode", qrUrl);
+//            response.put("propertyId", propertyId);
+//
+//            return ResponseHandler.generateResponse(
+//                    MessageConfig.PAYMENT_INITIATED,
+//                    HttpStatus.OK,
+//                    response
+//            );
+//        }
+//
+//        // IF NO PROPERTY ID, CHECK ALL PROPERTIES (OLD BEHAVIOR)
+//        for (Property property : properties) {
+//            if ("APPROVED".equalsIgnoreCase(property.getPaymentStatus())) {
+//                return ResponseHandler.generateResponse(
+//                        "Premium already approved for property id : " + property.getId(),
+//                        HttpStatus.BAD_REQUEST,
+//                        null
+//                );
+//            }
+//        }
+//
+//        // OWNER PREMIUM STATUS
+//        String status = owner.getPremiumStatus();
+//
+//        if (status == null || status.isEmpty()) {
+//            owner.setPremiumStatus("PENDING");
+//        } else {
+//            owner.setPremiumStatus(status + ",PENDING");
+//        }
+//
+//        owner.setPremiumCount(owner.getPremiumCount() + 1);
+//
+//        // SET PENDING IN ALL PROPERTIES
+//        for (Property property : properties) {
+//            property.setPaymentStatus("PENDING");
+//            propertyRepository.save(property);
+//        }
+//
+//        propertyOwnerRepository.save(owner);
+//
+//        String qrUrl = "http://localhost:8080/qr/payment.png";
+//        Map<String, Object> response = new HashMap<>();
+//        response.put("message", MessageConfig.SCAN_QR);
+//        response.put("qrCode", qrUrl);
+//        response.put("totalProperties", properties.size());
+//
+//        return ResponseHandler.generateResponse(
+//                MessageConfig.PAYMENT_INITIATED,
+//                HttpStatus.OK,
+//                response
+//        );
+//    }
+@PostMapping("/buyPremiumByOwner/{ownerId}")
+public ResponseEntity<Object> buyPremium(
+        @PathVariable Long ownerId,
+        @RequestParam Long propertyId) {
 
-        PropertyOwner owner =
-                propertyOwnerRepository
-                        .findById(ownerId)
-                        .orElse(null);
+    PropertyOwner owner = propertyOwnerRepository
+            .findById(ownerId)
+            .orElse(null);
 
-        if (owner == null) {
-
-            return ResponseHandler.generateResponse(
-                    MessageConfig.OWNER_NOT_FOUND,
-                    HttpStatus.BAD_REQUEST,
-                    null
-            );
-        }
-
-        // GET ALL OWNER PROPERTIES
-        List<Property> properties =
-                propertyRepository
-                        .findByPropertyOwner_OwnerIdOrderByCreatedAtDesc(ownerId);
-
-        // IF PROPERTY ID IS PROVIDED, ONLY CHECK THAT PROPERTY
-        if (propertyId != null) {
-            Property specificProperty = propertyRepository.findById(propertyId).orElse(null);
-
-            if (specificProperty == null) {
-                return ResponseHandler.generateResponse(
-                        "Property not found",
-                        HttpStatus.BAD_REQUEST,
-                        null
-                );
-            }
-
-            // CHECK IF THIS SPECIFIC PROPERTY IS ALREADY APPROVED
-            if ("APPROVED".equalsIgnoreCase(specificProperty.getPaymentStatus())) {
-                return ResponseHandler.generateResponse(
-                        "Property already approved",
-                        HttpStatus.BAD_REQUEST,
-                        null
-                );
-            }
-
-            // SET PENDING FOR THIS SPECIFIC PROPERTY ONLY
-            specificProperty.setPaymentStatus("PENDING");
-            propertyRepository.save(specificProperty);
-
-            // UPDATE OWNER STATUS
-            String status = owner.getPremiumStatus();
-            if (status == null || status.isEmpty()) {
-                owner.setPremiumStatus("PENDING");
-            } else if (!status.contains("PENDING")) {
-                owner.setPremiumStatus(status + ",PENDING");
-            }
-            owner.setPremiumCount(owner.getPremiumCount() + 1);
-            propertyOwnerRepository.save(owner);
-
-            String qrUrl = "http://localhost:8080/qr/payment.png";
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", MessageConfig.SCAN_QR);
-            response.put("qrCode", qrUrl);
-            response.put("propertyId", propertyId);
-
-            return ResponseHandler.generateResponse(
-                    MessageConfig.PAYMENT_INITIATED,
-                    HttpStatus.OK,
-                    response
-            );
-        }
-
-        // IF NO PROPERTY ID, CHECK ALL PROPERTIES (OLD BEHAVIOR)
-        for (Property property : properties) {
-            if ("APPROVED".equalsIgnoreCase(property.getPaymentStatus())) {
-                return ResponseHandler.generateResponse(
-                        "Premium already approved for property id : " + property.getId(),
-                        HttpStatus.BAD_REQUEST,
-                        null
-                );
-            }
-        }
-
-        // OWNER PREMIUM STATUS
-        String status = owner.getPremiumStatus();
-
-        if (status == null || status.isEmpty()) {
-            owner.setPremiumStatus("PENDING");
-        } else {
-            owner.setPremiumStatus(status + ",PENDING");
-        }
-
-        owner.setPremiumCount(owner.getPremiumCount() + 1);
-
-        // SET PENDING IN ALL PROPERTIES
-        for (Property property : properties) {
-            property.setPaymentStatus("PENDING");
-            propertyRepository.save(property);
-        }
-
-        propertyOwnerRepository.save(owner);
-
-        String qrUrl = "http://localhost:8080/qr/payment.png";
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", MessageConfig.SCAN_QR);
-        response.put("qrCode", qrUrl);
-        response.put("totalProperties", properties.size());
-
+    if (owner == null) {
         return ResponseHandler.generateResponse(
-                MessageConfig.PAYMENT_INITIATED,
-                HttpStatus.OK,
-                response
+                MessageConfig.OWNER_NOT_FOUND,
+                HttpStatus.BAD_REQUEST,
+                null
         );
     }
+
+    Property property = propertyRepository
+            .findById(propertyId)
+            .orElse(null);
+
+    if (property == null) {
+        return ResponseHandler.generateResponse(
+                "Property not found",
+                HttpStatus.BAD_REQUEST,
+                null
+        );
+    }
+
+    // PROPERTY BELONGS TO OWNER
+    if (property.getPropertyOwner() == null ||
+            !property.getPropertyOwner().getOwnerId().equals(ownerId)) {
+
+        return ResponseHandler.generateResponse(
+                "Property does not belong to owner",
+                HttpStatus.BAD_REQUEST,
+                null
+        );
+    }
+
+    // ALREADY APPROVED
+    if ("APPROVED".equalsIgnoreCase(property.getPaymentStatus())) {
+
+        return ResponseHandler.generateResponse(
+                "Property already approved",
+                HttpStatus.BAD_REQUEST,
+                null
+        );
+    }
+
+    // PAYMENT ALREADY PENDING
+    if ("PENDING".equalsIgnoreCase(property.getPaymentStatus())) {
+
+        return ResponseHandler.generateResponse(
+                "Payment already pending for this property",
+                HttpStatus.BAD_REQUEST,
+                null
+        );
+    }
+
+    double amount = 116.82;
+
+    String orderId =
+            "PROPERTY_" + System.currentTimeMillis();
+
+    // PROPERTY UPDATE
+    property.setPaymentStatus("PENDING");
+    property.setPaymentAmount(amount);
+    property.setPaymentOrderId(orderId);
+
+    propertyRepository.save(property);
+
+    // PAYMENT TRANSACTION SAVE
+    PaymentTransaction txn =
+            new PaymentTransaction();
+
+    txn.setOwnerId(ownerId);              // field asel tar
+    txn.setPropertyId(propertyId);        // field asel tar
+    txn.setOrderId(orderId);
+    txn.setAmount(amount);
+    txn.setPaymentStatus("PENDING");
+    txn.setPaymentType("PROPERTY_PREMIUM");
+    txn.setCreatedAt(LocalDateTime.now());
+
+    paymentRepo.save(txn);
+
+    Map<String, Object> response = new HashMap<>();
+
+    response.put("propertyId", propertyId);
+    response.put("orderId", orderId);
+    response.put("amount", amount);
+    response.put("paymentStatus", "PENDING");
+
+    return ResponseHandler.generateResponse(
+            MessageConfig.PAYMENT_INITIATED,
+            HttpStatus.OK,
+            response
+    );
+}
 
     @GetMapping("/getAllPropertiesByOwnerId/{ownerId}")
     public ResponseEntity<Object> getAllPropertiesByOwnerId(@PathVariable Long ownerId, HttpServletRequest request) {
@@ -501,7 +599,7 @@ public class OwnerPropertyController {
         response.put("premiumActive", owner.isPremiumActive());
         return ResponseHandler.generateResponse(MessageConfig.PROPERTY_FETCHED, HttpStatus.OK, response);
     }
-
+//Property.java
     @PutMapping("/activatePropertyById/{id}")
     public ResponseEntity<Object> activateProperty(@PathVariable Long id) {
         Long loggedInOwnerId = getLoggedInOwnerId();
@@ -533,4 +631,46 @@ public class OwnerPropertyController {
                         .body(content.data()))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
+//---------------------------------Payment Success------------------------//
+@PostMapping("/property-payment-success")
+public ResponseEntity<Object> paymentSuccess(
+        @RequestParam String orderId,
+        @RequestParam String transactionId) {
+
+    Property property = propertyRepository
+            .findByPaymentOrderId(orderId)
+            .orElse(null);
+
+    if (property == null) {
+        return ResponseHandler.generateResponse(
+                "Invalid Order Id",
+                HttpStatus.BAD_REQUEST,
+                null
+        );
+    }
+
+    // PROPERTY UPDATE
+    property.setPaymentStatus("SUCCESS");
+    property.setPaymentTransactionId(transactionId);
+
+    propertyRepository.save(property);
+
+    // TRANSACTION UPDATE
+    PaymentTransaction txn =
+            paymentRepo.findByOrderId(orderId)
+                    .orElse(null);
+
+    if (txn != null) {
+        txn.setTransactionId(transactionId);
+        txn.setPaymentStatus("SUCCESS");
+
+        paymentRepo.save(txn);
+    }
+
+    return ResponseHandler.generateResponse(
+            "Payment Success",
+            HttpStatus.OK,
+            null
+    );
+}
 }

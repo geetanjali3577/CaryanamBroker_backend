@@ -57,5 +57,12 @@ public class PropertyOwner {
 @Column(columnDefinition = "TEXT")
 private String premiumStatus = "";
     private String isActive;
+    private String paymentStatus;
+
+    private String phonePeOrderId;
+
+    private String phonePeTransactionId;
+
+    private Double premiumAmount;
 
 }
