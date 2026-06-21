@@ -4,6 +4,7 @@ import com.caryanam.caryanam_broker.appconstant.AppConstants;
 import com.caryanam.caryanam_broker.dto.PropertyDto;
 import com.caryanam.caryanam_broker.dto.PropertyFilterDto;
 import com.caryanam.caryanam_broker.entity.*;
+import com.caryanam.caryanam_broker.enums.PremiumStatus;
 import com.caryanam.caryanam_broker.messageconfig.MessageConfig;
 import com.caryanam.caryanam_broker.repository.*;
 import com.caryanam.caryanam_broker.service.AreaPincodeService;
@@ -142,6 +143,7 @@ public class PropertyServiceImpl implements PropertyService {
 
 
     @Override
+    @Transactional
     public PropertyDto addProperty(PropertyDto propertyDto, Long ownerId) {
 
         PropertyOwner owner = propertyOwnerRepository.findById(ownerId).orElse(null);
@@ -167,11 +169,26 @@ public class PropertyServiceImpl implements PropertyService {
         property.setApartmentName(propertyDto.getApartmentName());
         property.setLikesCount(0);
         property.setViewsCount(0);
-        if (owner.isPremiumActive()) {
+
+        if (Boolean.TRUE.equals(owner.getFreeOwner()) && !Boolean.TRUE.equals(owner.getFreePropertyUsed())) {
+            property.setPremiumStatus(PremiumStatus.FREE_ACTIVE);
+            property.setPremiumStartDate(java.time.LocalDateTime.now());
+            property.setPremiumEndDate(java.time.LocalDateTime.now().plusDays(30));
+            property.setIsFirstFreeProperty(true);
+            property.setPremiumActive(true);
             property.setStatus(AppConstants.ACTIVE);
+
+            owner.setFreePropertyUsed(true);
+            owner.setPremiumActive(true);
+            owner.setPremiumStatus("FREE_ACTIVE");
+            propertyOwnerRepository.save(owner);
         } else {
+            property.setPremiumStatus(PremiumStatus.PAYMENT_PENDING);
+            property.setIsFirstFreeProperty(false);
+            property.setPremiumActive(false);
             property.setStatus(AppConstants.PENDING);
         }
+
         property.setPropertyOwner(owner);
         Property saved = propertyRepository.save(property);
         PropertyDto dto = new PropertyDto();
@@ -203,26 +220,14 @@ public class PropertyServiceImpl implements PropertyService {
 
             // PAYMENT STATUS CHECK
             // PENDING PAYMENT PROPERTIES HIDE
-            if (property.getPaymentStatus() == null
-                    || !property.getPaymentStatus().equalsIgnoreCase("APPROVED")) {
+            if (property.getPremiumStatus() != PremiumStatus.FREE_ACTIVE
+                    && property.getPremiumStatus() != PremiumStatus.ACTIVE) {
                 continue;
             }
 
             PropertyOwner owner = property.getPropertyOwner();
 
-            // OWNER NULL CHECK
             if (owner == null) {
-                continue;
-            }
-
-            // OWNER PREMIUM ACTIVE CHECK
-            if (!owner.isPremiumActive()) {
-                continue;
-            }
-
-            // OWNER PREMIUM APPROVED CHECK
-            if (owner.getPremiumStatus() == null
-                    || !owner.getPremiumStatus().contains("APPROVED")) {
                 continue;
             }
 
@@ -539,25 +544,14 @@ public class PropertyServiceImpl implements PropertyService {
 
             // PAYMENT STATUS CHECK
             // ONLY APPROVED PAYMENT STATUS SHOW
-            if (property.getPaymentStatus() == null
-                    || !property.getPaymentStatus().equalsIgnoreCase("APPROVED")) {
+            if (property.getPremiumStatus() != PremiumStatus.FREE_ACTIVE
+                    && property.getPremiumStatus() != PremiumStatus.ACTIVE) {
                 continue;
             }
 
             PropertyOwner owner = property.getPropertyOwner();
 
             if (owner == null) {
-                continue;
-            }
-
-            // OWNER PREMIUM ACTIVE CHECK
-            if (!owner.isPremiumActive()) {
-                continue;
-            }
-
-            // OWNER PREMIUM APPROVED CHECK
-            if (owner.getPremiumStatus() == null
-                    || !owner.getPremiumStatus().contains("APPROVED")) {
                 continue;
             }
 

@@ -2,8 +2,10 @@ package com.caryanam.caryanam_broker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 public class NoBrokerApplication {
 
 	public static void main(String[] args) {

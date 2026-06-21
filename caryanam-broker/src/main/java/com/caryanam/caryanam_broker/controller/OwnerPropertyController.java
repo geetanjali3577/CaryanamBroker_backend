@@ -4,6 +4,7 @@ import com.caryanam.caryanam_broker.configuration.CustomUserDetails;
 import com.caryanam.caryanam_broker.dto.PropertyDto;
 import com.caryanam.caryanam_broker.dto.ResponseDto;
 import com.caryanam.caryanam_broker.dto.ResponseHandler;
+import com.caryanam.caryanam_broker.Enum.PaymentStatus;
 import com.caryanam.caryanam_broker.entity.*;
 import com.caryanam.caryanam_broker.messageconfig.MessageConfig;
 import com.caryanam.caryanam_broker.repository.*;
@@ -560,7 +561,10 @@ public ResponseEntity<Object> buyPremium(
     txn.setPropertyId(propertyId);        // field asel tar
     txn.setOrderId(orderId);
     txn.setAmount(amount);
-    txn.setPaymentStatus("PENDING");
+    txn.setBaseAmount(99.0);
+    txn.setGstAmount(17.82);
+    txn.setTotalAmount(116.82);
+    txn.setPaymentStatus(PaymentStatus.PENDING);
     txn.setPaymentType("PROPERTY_PREMIUM");
     txn.setCreatedAt(LocalDateTime.now());
 
@@ -662,7 +666,7 @@ public ResponseEntity<Object> paymentSuccess(
 
     if (txn != null) {
         txn.setTransactionId(transactionId);
-        txn.setPaymentStatus("SUCCESS");
+        txn.setPaymentStatus(PaymentStatus.SUCCESS);
 
         paymentRepo.save(txn);
     }

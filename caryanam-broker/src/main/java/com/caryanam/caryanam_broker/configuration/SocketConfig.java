@@ -26,7 +26,7 @@ public class SocketConfig {
          config.setHostname("0.0.0.0");
          config.setOrigin("*");
 
-        config.setPort(8084);
+        config.setPort(8085);
 
 
         config.setOrigin("http://localhost:63342");

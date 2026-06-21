@@ -153,6 +153,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/premium/callback").permitAll()
+                        .requestMatchers("/premium/buy/**", "/premium/status/**").hasAnyRole("PROPERTY_OWNER", "ADMIN")
+                        .requestMatchers("/admin/premium/**").hasRole("ADMIN")
 //                        .requestMatchers("/api/user/buyPremium/**").permitAll()
 //                        .requestMatchers("/api/owner/buyPremiumByOwner/**").permitAll()
                                 .requestMatchers("/api/user/buyPremium/**")
@@ -215,6 +218,15 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration config = new CorsConfiguration();
+//        config.setAllowedOrigins(List.of(
+//                "http://localhost:5173",
+//                "http://localhost:3000",
+//                "http://localhost:63342",
+//                "https://rentalchaavi.netlify.app",
+//                "https://r1.rentalchaavi.com",
+//                "https://r2.rentalchaavi.com",
+//                "https://rentalchaavi.com"
+//        ));
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",
@@ -222,9 +234,8 @@ public class SecurityConfig {
                 "https://rentalchaavi.netlify.app",
                 "https://r1.rentalchaavi.com",
                 "https://r2.rentalchaavi.com",
-                "https://rentalchaavi.com"
-
-
+                "https://rentalchaavi.com",
+                "https://www.rentalchaavi.com"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("*"));

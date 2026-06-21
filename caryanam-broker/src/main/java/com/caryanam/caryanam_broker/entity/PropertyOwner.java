@@ -52,10 +52,15 @@ public class PropertyOwner {
     private Integer propertyLimit = 1;
     @Column(nullable = false)
     private boolean premiumActive = false;
-//    @Column(nullable = false)
-//    private String premiumStatus = "NONE";
-@Column(columnDefinition = "TEXT")
-private String premiumStatus = "";
+    
+    @Column(name = "free_owner")
+    private Boolean freeOwner = false;
+
+    @Column(name = "free_property_used")
+    private Boolean freePropertyUsed = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String premiumStatus = "";
     private String isActive;
     private String paymentStatus;
 

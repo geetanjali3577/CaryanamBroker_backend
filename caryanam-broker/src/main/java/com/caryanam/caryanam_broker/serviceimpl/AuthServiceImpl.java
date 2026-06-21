@@ -107,10 +107,18 @@ public class AuthServiceImpl implements AuthService {
         owner.setFullName(dto.getFullName());
         owner.setMobileNumber(String.valueOf(dto.getMobileNumber()));
         owner.setEmail(dto.getEmail());
-        owner.setEmail(dto.getEmail());
         owner.setPassword(passwordEncoder.encode(dto.getPassword()));
         owner.setRole(Role.PROPERTY_OWNER);
         owner.setIsActive("true");
+
+        long totalOwners = propertyOwerRepository.count();
+        if (totalOwners < 100) {
+            owner.setFreeOwner(true);
+        } else {
+            owner.setFreeOwner(false);
+        }
+        owner.setFreePropertyUsed(false);
+
         PropertyOwner saved = propertyOwerRepository.save(owner);
         return RegisterResponseDTO.builder()
                 .id(saved.getOwnerId())

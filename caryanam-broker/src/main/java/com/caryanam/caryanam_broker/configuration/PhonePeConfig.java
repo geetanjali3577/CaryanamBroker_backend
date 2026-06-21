@@ -2,8 +2,6 @@ package com.caryanam.caryanam_broker.configuration;
 
 import lombok.Getter;
 import lombok.Setter;
-
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,4 +18,19 @@ public class PhonePeConfig {
 
     @Value("${phonepe.client-version}")
     private Integer clientVersion;
+
+    @Value("${phonepe.auth-url}")
+    private String authUrl;
+
+    @Value("${phonepe.pay-url}")
+    private String payUrl;
+
+    @Value("${phonepe.redirect-url}")
+    private String redirectUrl;
+
+    @Value("${phonepe.webhook.username}")
+    private String webhookUsername;
+
+    @Value("${phonepe.webhook.password}")
+    private String webhookPassword;
 }

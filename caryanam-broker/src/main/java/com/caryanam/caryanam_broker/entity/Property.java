@@ -3,6 +3,7 @@ import com.caryanam.caryanam_broker.Enum.BhkType;
 import com.caryanam.caryanam_broker.Enum.FurnishingType;
 import com.caryanam.caryanam_broker.Enum.PgType;
 import com.caryanam.caryanam_broker.Enum.PropertyType;
+import com.caryanam.caryanam_broker.enums.PremiumStatus;
 import jakarta.persistence.*;
 import jakarta.persistence.Enumerated;
 import lombok.Data;
@@ -48,7 +49,21 @@ public class Property {
     @ManyToOne
     @JoinColumn(name = "owner_id")
     private PropertyOwner propertyOwner;
-    private boolean isPremiumActive;
+    @Column(name = "premium_active")
+    private Boolean premiumActive = false;
+
+    public Boolean getPremiumActive() {
+        return premiumActive;
+    }
+
+    public void setPremiumActive(Boolean premiumActive) {
+        this.premiumActive = premiumActive;
+    }
+
+    public boolean isPremiumActive() {
+        return premiumActive != null && premiumActive;
+    }
+
     private String paymentStatus;
     @Column(name = "apartment_name")
     private String apartmentName;
@@ -63,4 +78,26 @@ public class Property {
 
     private String paymentTransactionId;
     private LocalDateTime paymentDate;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "premium_status")
+    private PremiumStatus premiumStatus;
+
+    @Column(name = "premium_start_date")
+    private LocalDateTime premiumStartDate;
+
+    @Column(name = "premium_end_date")
+    private LocalDateTime premiumEndDate;
+
+    @Column(name = "premium_approved_by")
+    private String premiumApprovedBy;
+
+    @Column(name = "premium_approved_date")
+    private LocalDateTime premiumApprovedDate;
+
+    @Column(name = "is_first_free_property")
+    private Boolean isFirstFreeProperty = false;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
    }
