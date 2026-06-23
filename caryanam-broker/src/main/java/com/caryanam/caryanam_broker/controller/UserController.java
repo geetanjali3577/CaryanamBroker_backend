@@ -127,6 +127,7 @@ public class UserController {
 
         String currentPremiumStatus = currentStatus(user.getPremiumStatus());
 
+        // Block only if already APPROVED or active
         if ("APPROVED".equals(currentPremiumStatus) || user.isPremiumActive()) {
             return ResponseHandler.generateResponse(
                     "Premium already approved",
@@ -135,20 +136,17 @@ public class UserController {
             );
         }
 
+        // Block only if payment is already pending (SUCCESS = waiting for admin)
         if ("PENDING".equals(currentPremiumStatus)) {
             return ResponseHandler.generateResponse(
-                    "Premium request already pending",
+                    "Premium request already pending admin approval",
                     HttpStatus.BAD_REQUEST,
                     null
             );
         }
 
-        user.setPremiumStatus("PENDING");
-        user.setPremiumActive(false);
-        user.setPremiumCount(user.getPremiumCount() + 1);
-
-        userRepository.save(user);
-
+        // Allow retry if FAILED, CANCELLED, REJECTED, PAYMENT_PENDING, EXPIRED, or null
+        // Do NOT pre-set premiumStatus here — the service layer handles it
         PremiumPaymentResponseDto response = phonePeService.createPremiumOrder(userId);
 
         return ResponseHandler.generateResponse(
@@ -366,24 +364,71 @@ public class UserController {
         );
     }
 
-    // ================= OLD MANUAL PAYMENT SUCCESS =================
-    // POST /api/user/payment-success
-    @PostMapping("/payment-success")
-    public ResponseEntity<Object> paymentSuccess(
-            @RequestParam String orderId,
-            @RequestParam String transactionId
-    ) {
+    // ================= USER PREMIUM STATUS =================
+    // GET /api/user/premium-status/{userId}
+    //changesforphonepe
+    @GetMapping("/premium-status/{userId}")
+    public ResponseEntity<Object> getPremiumStatus(@PathVariable Long userId) {
+        Long loggedInUserId = getLoggedInUserId();
+        if (loggedInUserId == null) {
+            return ResponseHandler.generateResponse(MessageConfig.UNAUTHORIZED, HttpStatus.UNAUTHORIZED, null);
+        }
+        if (!isAdmin() && !loggedInUserId.equals(userId)) {
+            return ResponseHandler.generateResponse(MessageConfig.FORBIDDEN, HttpStatus.FORBIDDEN, null);
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return ResponseHandler.generateResponse("User not found", HttpStatus.NOT_FOUND, null);
+        }
 
-        phonePeService.paymentSuccess(orderId, transactionId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("userId", user.getUserId());
 
-        return ResponseHandler.generateResponse(
-                "Payment Success",
-                HttpStatus.OK,
-                null
-        );
+        String pStatus = user.getPremiumStatus();
+        if (pStatus == null) {
+            pStatus = "";
+        }
+        String currentPStatus = "";
+        String[] parts = pStatus.split(",");
+        if (parts.length > 0) {
+            currentPStatus = parts[parts.length - 1].trim();
+        }
+
+        response.put("premiumStatus", currentPStatus);
+        response.put("paymentStatus", user.getPaymentStatus());
+        response.put("phonePeOrderId", user.getPhonePeOrderId());
+        response.put("phonePeTransactionId", user.getPhonePeTransactionId());
+        response.put("premiumActive", user.isPremiumActive());
+
+        String friendly = getFriendlyUserStatus(pStatus, user.isPremiumActive());
+        response.put("message", friendly);
+        response.put("friendlyStatus", friendly);
+
+        return ResponseHandler.generateResponse("Premium status fetched successfully", HttpStatus.OK, response);
     }
 
-    // ================= TEST PHONEPE TOKEN =================
+    private String getFriendlyUserStatus(String status, boolean active) {
+        if (active || "APPROVED".equalsIgnoreCase(status)) {
+            return "Premium Active";
+        }
+        if (status == null || status.isBlank()) {
+            return "None";
+        }
+        String current = "";
+        String[] parts = status.split(",");
+        if (parts.length > 0) {
+            current = parts[parts.length - 1].trim().toUpperCase();
+        }
+        return switch (current) {
+            case "PENDING" -> "Payment Success Waiting For Approval";
+            case "REJECTED" -> "Premium Rejected";
+            case "EXPIRED" -> "Premium Expired";
+            case "PAYMENT_PENDING" -> "Payment Pending";
+            case "CANCELLED" -> "Payment Cancelled";
+            case "FAILED" -> "Payment Failed";
+            default -> "None";
+        };
+    }// ================= TEST PHONEPE TOKEN =================
     // GET /api/user/token
     @GetMapping("/token")
     public ResponseEntity<?> token() {

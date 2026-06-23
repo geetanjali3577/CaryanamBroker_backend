@@ -22,6 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -31,6 +32,8 @@ import java.util.*;
 
 @RestController
 public class PremiumSubscriptionController {
+
+    private static final int STALE_PENDING_MINUTES = 25;
 
     @Autowired
     private PropertyRepository propertyRepository;
@@ -151,7 +154,8 @@ public class PremiumSubscriptionController {
         }
 
         if (property.getPremiumStatus() == PremiumStatus.ACTIVE
-                || property.getPremiumStatus() == PremiumStatus.FREE_ACTIVE) {
+                || property.getPremiumStatus() == PremiumStatus.FREE_ACTIVE
+                || Boolean.TRUE.equals(property.getPremiumActive())) {
 
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "Property already has an active premium subscription"));
@@ -161,21 +165,48 @@ public class PremiumSubscriptionController {
                 paymentRepo.findFirstByPropertyIdAndPaymentStatus(propertyId, PaymentStatus.PENDING);
 
         if (existingPending.isPresent()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", "Payment already pending for this property"));
+            PaymentTransaction oldTxn = existingPending.get();
+
+            boolean stalePending =
+                    oldTxn.getCreatedAt() != null
+                            && oldTxn.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(STALE_PENDING_MINUTES));
+
+            if (stalePending) {
+                oldTxn.setPaymentStatus(PaymentStatus.CANCELLED);
+                oldTxn.setPaymentResponse("Auto-cancelled because payment was pending for more than "
+                        + STALE_PENDING_MINUTES + " minutes");
+                paymentRepo.save(oldTxn);
+
+                property.setPaymentStatus("CANCELLED");
+                property.setPremiumStatus(PremiumStatus.REJECTED);
+                property.setPremiumActive(false);
+                propertyRepository.save(property);
+
+                PropertyOwner owner = property.getPropertyOwner();
+                if (owner != null) {
+                    owner.setPaymentStatus("CANCELLED");
+                    owner.setPremiumStatus("CANCELLED");
+                    owner.setPremiumActive(false);
+                    propertyOwnerRepository.save(owner);
+                }
+
+            } else {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("message", "Payment already pending for this property"));
+            }
         }
 
         // ================= TEST AMOUNT ₹1 =================
-        double baseAmount = 1.0;
-        double gstAmount = 0.0;
-        double totalAmount = 1.0;
-        long phonePeAmount = 100L; // ₹1 = 100 paisa
+//        double baseAmount = 1.0;
+//        double gstAmount = 0.0;
+//        double totalAmount = 1.0;
+//        long phonePeAmount = 100L;
 
         // ================= FINAL AMOUNT 99 + GST =================
-        // double baseAmount = 99.0;
-        // double gstAmount = 17.82;
-        // double totalAmount = 116.82;
-        // long phonePeAmount = Math.round(totalAmount * 100); // 11682 paisa
+         double baseAmount = 99.0;
+         double gstAmount = 17.82;
+         double totalAmount = 116.82;
+         long phonePeAmount = Math.round(totalAmount * 100);
 
         String orderId = "PREMIUM_" + System.currentTimeMillis();
 
@@ -193,12 +224,6 @@ public class PremiumSubscriptionController {
         txn.setCreatedAt(LocalDateTime.now());
         paymentRepo.save(txn);
 
-        property.setPremiumStatus(PremiumStatus.PAYMENT_PENDING);
-        property.setPaymentOrderId(orderId);
-        property.setPaymentStatus("PENDING");
-        property.setPaymentAmount(totalAmount);
-        propertyRepository.save(property);
-
         String paymentUrl;
 
         try {
@@ -206,13 +231,7 @@ public class PremiumSubscriptionController {
         } catch (Exception e) {
             e.printStackTrace();
 
-            txn.setPaymentStatus(PaymentStatus.FAILED);
-            txn.setPaymentResponse("PhonePe payment URL creation failed: " + e.getMessage());
-            paymentRepo.save(txn);
-
-            property.setPaymentStatus("FAILED");
-            property.setPremiumStatus(PremiumStatus.REJECTED);
-            propertyRepository.save(property);
+            markPropertyPaymentFailed(txn, property, "PhonePe payment URL creation failed: " + e.getMessage());
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of(
@@ -220,6 +239,25 @@ public class PremiumSubscriptionController {
                             "message", "PhonePe payment URL creation failed",
                             "error", e.getMessage()
                     ));
+        }
+
+        // Important: PhonePe URL successfully create झाल्यावरच PENDING set करायचं
+        property.setPremiumStatus(PremiumStatus.PAYMENT_PENDING);
+        property.setPaymentOrderId(orderId);
+        property.setPaymentStatus("PENDING");
+        property.setPaymentAmount(totalAmount);
+        property.setPremiumActive(false);
+        propertyRepository.save(property);
+
+        PropertyOwner owner = property.getPropertyOwner();
+        if (owner != null) {
+            owner.setPaymentStatus("PENDING");
+            owner.setPremiumStatus("PAYMENT_PENDING");
+            owner.setPremiumActive(false);
+            owner.setPhonePeOrderId(orderId);
+            owner.setPremiumAmount(totalAmount);
+            owner.setPremiumCount((owner.getPremiumCount() == null ? 0 : owner.getPremiumCount()) + 1);
+            propertyOwnerRepository.save(owner);
         }
 
         PremiumPaymentResponseDto response = new PremiumPaymentResponseDto(
@@ -232,87 +270,265 @@ public class PremiumSubscriptionController {
         return ResponseEntity.ok(response);
     }
 
-    // ================= PHONEPE CREATE PAYMENT URL =================
-    private String createPhonePePaymentUrl(String orderId, Long amountInPaisa, Long propertyId) {
+    // ================= PHONEPE V2 OAuth: Get Access Token =================
+    private String getOAuthAccessToken() {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
 
-        String accessToken = getAccessToken();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        RestTemplate restTemplate = new RestTemplate();
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", phonePeConfig.getClientId());
+            body.add("client_secret", phonePeConfig.getClientSecret());
+            body.add("client_version", phonePeConfig.getClientVersion());
+            body.add("grant_type", "client_credentials");
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "O-Bearer " + accessToken);
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
-        Map<String, Object> merchantUrls = new HashMap<>();
-        merchantUrls.put("redirectUrl", phonePeConfig.getRedirectUrl());
+            System.out.println("========== PhonePe V2 OAuth Token Request ==========");
+            System.out.println("URL: " + phonePeConfig.getAuthUrl());
+            System.out.println("ClientId: " + phonePeConfig.getClientId());
 
-        Map<String, Object> paymentFlow = new HashMap<>();
-        paymentFlow.put("type", "PG_CHECKOUT");
-        paymentFlow.put("merchantUrls", merchantUrls);
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    phonePeConfig.getAuthUrl(),
+                    request,
+                    Map.class
+            );
 
-        Map<String, Object> metaInfo = new HashMap<>();
-        metaInfo.put("udf1", "PROPERTY_PREMIUM");
-        metaInfo.put("udf2", String.valueOf(propertyId));
+            Map responseBody = response.getBody();
+            System.out.println("OAuth Response: " + responseBody);
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("merchantOrderId", orderId);
-        requestBody.put("amount", amountInPaisa);
-        requestBody.put("expireAfter", 1200);
-        requestBody.put("paymentFlow", paymentFlow);
-        requestBody.put("metaInfo", metaInfo);
+            if (responseBody == null || !responseBody.containsKey("access_token")) {
+                throw new RuntimeException("Failed to get PhonePe OAuth token. Response: " + responseBody);
+            }
 
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            return responseBody.get("access_token").toString();
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-                phonePeConfig.getPayUrl(),
-                request,
-                Map.class
-        );
-
-        Map body = response.getBody();
-
-        if (body == null) {
-            throw new RuntimeException("PhonePe response body is null");
+        } catch (RestClientResponseException e) {
+            System.out.println("PhonePe OAuth Error Status: " + e.getStatusCode().value());
+            System.out.println("PhonePe OAuth Error Body: " + e.getResponseBodyAsString());
+            throw new RuntimeException("PhonePe OAuth token failed: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("PhonePe OAuth token failed: " + e.getMessage(), e);
         }
-
-        Object redirectUrlObj = body.get("redirectUrl");
-
-        if (redirectUrlObj == null) {
-            throw new RuntimeException("PhonePe redirectUrl not received. Response: " + body);
-        }
-
-        return redirectUrlObj.toString();
     }
 
-    // ================= PHONEPE AUTH TOKEN =================
-    private String getAccessToken() {
+    // ================= PHONEPE V2 CREATE PAYMENT URL =================
+    private String createPhonePePaymentUrl(String orderId, Long amountInPaisa, Long propertyId) {
+        try {
+            String accessToken = getOAuthAccessToken();
 
-        RestTemplate restTemplate = new RestTemplate();
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("merchantOrderId", orderId);
+            payload.put("amount", amountInPaisa);
+            payload.put("expireAfter", 1200);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            Map<String, Object> metaInfo = new HashMap<>();
+            metaInfo.put("udf1", "PROPERTY_" + propertyId);
+            payload.put("metaInfo", metaInfo);
 
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("client_id", phonePeConfig.getClientId());
-        body.add("client_version", String.valueOf(phonePeConfig.getClientVersion()));
-        body.add("client_secret", phonePeConfig.getClientSecret());
-        body.add("grant_type", "client_credentials");
+            Map<String, Object> merchantUrls = new HashMap<>();
+            merchantUrls.put(
+                    "redirectUrl",
+                    appendQueryParams(phonePeConfig.getRedirectUrl(), orderId, "property")
+            );
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+            Map<String, Object> paymentFlowConfig = new HashMap<>();
+            paymentFlowConfig.put("type", "PG_CHECKOUT");
+            paymentFlowConfig.put("message", "Property premium payment");
+            paymentFlowConfig.put("merchantUrls", merchantUrls);
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-                phonePeConfig.getAuthUrl(),
-                request,
-                Map.class
-        );
+            payload.put("paymentFlow", paymentFlowConfig);
 
-        Map responseBody = response.getBody();
+            String jsonPayload =
+                    new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(payload);
 
-        if (responseBody == null || responseBody.get("access_token") == null) {
-            throw new RuntimeException("PhonePe access_token not received. Response: " + responseBody);
+            System.out.println("========== PhonePe V2 Pay Request (Property) ==========");
+            System.out.println("URL: " + phonePeConfig.getPayUrl());
+            System.out.println("OrderId: " + orderId);
+            System.out.println("Amount (paise): " + amountInPaisa);
+            System.out.println("Payload: " + jsonPayload);
+
+            RestTemplate restTemplate = new RestTemplate();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // IMPORTANT: PhonePe V2 needs O-Bearer, not Bearer
+            headers.set("Authorization", "O-Bearer " + accessToken);
+
+            HttpEntity<String> request = new HttpEntity<>(jsonPayload, headers);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    phonePeConfig.getPayUrl(),
+                    request,
+                    Map.class
+            );
+
+            System.out.println("========== PhonePe V2 Response ==========");
+            System.out.println("Status: " + response.getStatusCode());
+            System.out.println("Body: " + response.getBody());
+
+            Map respBody = response.getBody();
+
+            if (respBody == null) {
+                throw new RuntimeException("PhonePe V2 response body is null");
+            }
+
+            Object redirectUrlObj = respBody.get("redirectUrl");
+
+            if (redirectUrlObj == null || redirectUrlObj.toString().isBlank()) {
+                throw new RuntimeException("PhonePe V2 did not return redirectUrl. Response: " + respBody);
+            }
+
+            return redirectUrlObj.toString();
+
+        } catch (RestClientResponseException e) {
+            System.out.println("PhonePe Pay Error Status: " + e.getStatusCode().value());
+            System.out.println("PhonePe Pay Error Body: " + e.getResponseBodyAsString());
+            throw new RuntimeException("Error during PhonePe V2 order creation: " + e.getMessage()
+                    + " | Body: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Error during PhonePe V2 order creation: " + e.getMessage(), e);
+        }
+    }
+
+    private String appendQueryParams(String redirectUrl, String orderId, String type) {
+        String separator = redirectUrl.contains("?") ? "&" : "?";
+        return redirectUrl + separator + "orderId=" + orderId + "&type=" + type;
+    }
+
+    private void markPropertyPaymentFailed(PaymentTransaction txn, Property property, String message) {
+        txn.setPaymentStatus(PaymentStatus.FAILED);
+        txn.setPaymentResponse(message);
+        paymentRepo.save(txn);
+
+        property.setPaymentStatus("FAILED");
+        property.setPremiumStatus(PremiumStatus.REJECTED);
+        property.setPremiumActive(false);
+        propertyRepository.save(property);
+
+        PropertyOwner owner = property.getPropertyOwner();
+        if (owner != null) {
+            owner.setPaymentStatus("FAILED");
+            owner.setPremiumStatus("FAILED");
+            owner.setPremiumActive(false);
+            propertyOwnerRepository.save(owner);
+        }
+    }
+
+    private void markLinkedEntitiesAfterVerification(
+            PaymentTransaction txn,
+            PaymentStatus paymentStatus,
+            String transactionId
+    ) {
+        txn.setPaymentStatus(paymentStatus);
+
+        if (transactionId != null && !transactionId.isBlank()) {
+            txn.setTransactionId(transactionId);
         }
 
-        return responseBody.get("access_token").toString();
+        paymentRepo.save(txn);
+
+        if (txn.getUserId() != null) {
+            User user = userRepository.findById(txn.getUserId()).orElse(null);
+
+            if (user != null) {
+                if (paymentStatus == PaymentStatus.SUCCESS) {
+                    user.setPaymentStatus("SUCCESS");
+                    user.setPremiumStatus("PENDING");
+                    user.setPremiumActive(false);
+
+                    if (transactionId != null && !transactionId.isBlank()) {
+                        user.setPhonePeTransactionId(transactionId);
+                    }
+
+                } else if (paymentStatus == PaymentStatus.FAILED) {
+                    user.setPaymentStatus("FAILED");
+                    user.setPremiumStatus("FAILED");
+                    user.setPremiumActive(false);
+
+                } else if (paymentStatus == PaymentStatus.CANCELLED) {
+                    user.setPaymentStatus("CANCELLED");
+                    user.setPremiumStatus("CANCELLED");
+                    user.setPremiumActive(false);
+
+                } else {
+                    user.setPaymentStatus("PENDING");
+                    user.setPremiumStatus("PAYMENT_PENDING");
+                    user.setPremiumActive(false);
+                }
+
+                userRepository.save(user);
+            }
+
+            return;
+        }
+
+        if (txn.getPropertyId() != null) {
+            Property property = propertyRepository.findById(txn.getPropertyId()).orElse(null);
+
+            if (property != null) {
+                if (paymentStatus == PaymentStatus.SUCCESS) {
+                    property.setPremiumStatus(PremiumStatus.PENDING_APPROVAL);
+                    property.setPaymentStatus("SUCCESS");
+                    property.setPremiumActive(false);
+
+                    if (transactionId != null && !transactionId.isBlank()) {
+                        property.setPaymentTransactionId(transactionId);
+                    }
+
+                    property.setPaymentDate(LocalDateTime.now());
+
+                    PropertyOwner owner = property.getPropertyOwner();
+                    if (owner != null) {
+                        owner.setPaymentStatus("SUCCESS");
+                        owner.setPremiumStatus("PENDING_APPROVAL");
+                        owner.setPremiumActive(false);
+
+                        if (transactionId != null && !transactionId.isBlank()) {
+                            owner.setPhonePeTransactionId(transactionId);
+                        }
+
+                        propertyOwnerRepository.save(owner);
+                    }
+
+                } else if (paymentStatus == PaymentStatus.FAILED) {
+                    property.setPremiumStatus(PremiumStatus.REJECTED);
+                    property.setPaymentStatus("FAILED");
+                    property.setPremiumActive(false);
+
+                    PropertyOwner owner = property.getPropertyOwner();
+                    if (owner != null) {
+                        owner.setPaymentStatus("FAILED");
+                        owner.setPremiumStatus("FAILED");
+                        owner.setPremiumActive(false);
+                        propertyOwnerRepository.save(owner);
+                    }
+
+                } else if (paymentStatus == PaymentStatus.CANCELLED) {
+                    property.setPremiumStatus(PremiumStatus.REJECTED);
+                    property.setPaymentStatus("CANCELLED");
+                    property.setPremiumActive(false);
+
+                    PropertyOwner owner = property.getPropertyOwner();
+                    if (owner != null) {
+                        owner.setPaymentStatus("CANCELLED");
+                        owner.setPremiumStatus("CANCELLED");
+                        owner.setPremiumActive(false);
+                        propertyOwnerRepository.save(owner);
+                    }
+
+                } else {
+                    property.setPremiumStatus(PremiumStatus.PAYMENT_PENDING);
+                    property.setPaymentStatus("PENDING");
+                    property.setPremiumActive(false);
+                }
+
+                propertyRepository.save(property);
+            }
+        }
     }
 
     // ================= PHONEPE WEBHOOK / CALLBACK =================
@@ -344,7 +560,6 @@ public class PremiumSubscriptionController {
             }
 
             String event = String.valueOf(requestBody.get("event"));
-
             Object payloadObj = requestBody.get("payload");
 
             if (!(payloadObj instanceof Map)) {
@@ -368,24 +583,7 @@ public class PremiumSubscriptionController {
             }
 
             String state = payload.get("state") == null ? "" : payload.get("state").toString();
-
-            String transactionId = null;
-
-            Object paymentDetailsObj = payload.get("paymentDetails");
-
-            if (paymentDetailsObj instanceof List<?>) {
-                List<?> paymentDetails = (List<?>) paymentDetailsObj;
-
-                if (!paymentDetails.isEmpty() && paymentDetails.get(0) instanceof Map<?, ?>) {
-                    Map<?, ?> firstPayment = (Map<?, ?>) paymentDetails.get(0);
-
-                    Object txnIdObj = firstPayment.get("transactionId");
-
-                    if (txnIdObj != null) {
-                        transactionId = txnIdObj.toString();
-                    }
-                }
-            }
+            String transactionId = extractTransactionId(payload.get("paymentDetails"));
 
             Optional<PaymentTransaction> txnOpt = paymentRepo.findByOrderId(merchantOrderId);
 
@@ -398,11 +596,6 @@ public class PremiumSubscriptionController {
             }
 
             PaymentTransaction txn = txnOpt.get();
-
-            if (transactionId != null) {
-                txn.setTransactionId(transactionId);
-            }
-
             txn.setPaymentResponse(requestBody.toString());
 
             boolean paymentSuccess =
@@ -413,83 +606,24 @@ public class PremiumSubscriptionController {
                     "checkout.order.failed".equalsIgnoreCase(event)
                             || "FAILED".equalsIgnoreCase(state);
 
+            boolean paymentCancelled =
+                    "checkout.order.cancelled".equalsIgnoreCase(event)
+                            || "CANCELLED".equalsIgnoreCase(state)
+                            || "EXPIRED".equalsIgnoreCase(state);
+
             if (paymentSuccess) {
-                txn.setPaymentStatus(PaymentStatus.SUCCESS);
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.SUCCESS, transactionId);
             } else if (paymentFailed) {
-                txn.setPaymentStatus(PaymentStatus.FAILED);
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.FAILED, transactionId);
+            } else if (paymentCancelled) {
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.CANCELLED, transactionId);
             } else {
-                txn.setPaymentStatus(PaymentStatus.PENDING);
-            }
-
-            paymentRepo.save(txn);
-
-            // ================= USER PREMIUM WEBHOOK HANDLING =================
-            if (txn.getUserId() != null) {
-
-                Optional<User> userOpt = userRepository.findById(txn.getUserId());
-
-                if (userOpt.isPresent()) {
-                    User user = userOpt.get();
-
-                    if (txn.getPaymentStatus() == PaymentStatus.SUCCESS) {
-                        user.setPaymentStatus("SUCCESS");
-                        user.setPremiumStatus("PENDING");
-                        user.setPremiumActive(false);
-
-                        if (transactionId != null) {
-                            user.setPhonePeTransactionId(transactionId);
-                        }
-
-                    } else if (txn.getPaymentStatus() == PaymentStatus.FAILED) {
-                        user.setPaymentStatus("FAILED");
-                        user.setPremiumStatus("REJECTED");
-                        user.setPremiumActive(false);
-                    }
-
-                    userRepository.save(user);
-                }
-
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "User premium webhook processed successfully"
-                ));
-            }
-
-            // ================= PROPERTY PREMIUM WEBHOOK HANDLING =================
-            if (txn.getPropertyId() != null) {
-
-                Optional<Property> propOpt = propertyRepository.findById(txn.getPropertyId());
-
-                if (propOpt.isPresent()) {
-                    Property property = propOpt.get();
-
-                    if (txn.getPaymentStatus() == PaymentStatus.SUCCESS) {
-                        property.setPremiumStatus(PremiumStatus.PENDING_APPROVAL);
-                        property.setPaymentStatus("SUCCESS");
-
-                        if (transactionId != null) {
-                            property.setPaymentTransactionId(transactionId);
-                        }
-
-                        property.setPaymentDate(LocalDateTime.now());
-
-                    } else if (txn.getPaymentStatus() == PaymentStatus.FAILED) {
-                        property.setPremiumStatus(PremiumStatus.REJECTED);
-                        property.setPaymentStatus("FAILED");
-                    }
-
-                    propertyRepository.save(property);
-                }
-
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "Property premium webhook processed successfully"
-                ));
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.PENDING, transactionId);
             }
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "Webhook processed but no userId/propertyId found"
+                    "message", "Webhook processed successfully"
             ));
 
         } catch (Exception e) {
@@ -502,6 +636,24 @@ public class PremiumSubscriptionController {
                             "error", e.getMessage()
                     ));
         }
+    }
+
+    private String extractTransactionId(Object paymentDetailsObj) {
+        if (paymentDetailsObj instanceof List<?>) {
+            List<?> paymentDetails = (List<?>) paymentDetailsObj;
+
+            if (!paymentDetails.isEmpty() && paymentDetails.get(0) instanceof Map<?, ?>) {
+                Map<?, ?> firstPayment = (Map<?, ?>) paymentDetails.get(0);
+
+                Object txnIdObj = firstPayment.get("transactionId");
+
+                if (txnIdObj != null) {
+                    return txnIdObj.toString();
+                }
+            }
+        }
+
+        return null;
     }
 
     private String sha256(String input) {
@@ -573,12 +725,139 @@ public class PremiumSubscriptionController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("propertyName", property.getTitle());
-        response.put("premiumStatus", getFriendlyStatus(property.getPremiumStatus()));
+        response.put("premiumStatus", property.getPremiumStatus() != null ? property.getPremiumStatus().name() : "NONE");
+        response.put("friendlyStatus", getFriendlyStatus(property.getPremiumStatus()));
         response.put("premiumExpiryDate", property.getPremiumEndDate());
         response.put("paymentStatus", property.getPaymentStatus());
+        response.put("paymentOrderId", property.getPaymentOrderId());
+        response.put("paymentTransactionId", property.getPaymentTransactionId());
+        response.put("paymentDate", property.getPaymentDate());
+        response.put("premiumActive", property.getPremiumActive());
         response.put("daysRemaining", daysRemaining);
 
         return ResponseEntity.ok(response);
+    }
+
+    // ================= PHONEPE V2 STATUS VERIFICATION =================
+    // GET /premium/verify/{orderId}
+    @GetMapping("/premium/verify/{orderId}")
+    public ResponseEntity<Object> verifyPayment(@PathVariable String orderId) {
+        try {
+            Optional<PaymentTransaction> txnOpt = paymentRepo.findByOrderId(orderId);
+
+            if (txnOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("success", false, "message", "Transaction not found"));
+            }
+
+            PaymentTransaction txn = txnOpt.get();
+
+            String accessToken = getOAuthAccessToken();
+
+            String statusUrl =
+                    "https://api.phonepe.com/apis/pg/checkout/v2/order/" + orderId + "/status";
+
+            RestTemplate restTemplate = new RestTemplate();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "O-Bearer " + accessToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            System.out.println("========== PhonePe V2 Status Verify ==========");
+            System.out.println("URL: " + statusUrl);
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    statusUrl,
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+
+            System.out.println("========== PhonePe V2 Status Response ==========");
+            System.out.println("Response: " + response.getBody());
+
+            Map body = response.getBody();
+
+            if (body == null) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(Map.of("success", false, "message", "Empty response from PhonePe"));
+            }
+
+            txn.setPaymentResponse(body.toString());
+
+            String state = body.get("state") == null ? "" : body.get("state").toString();
+            String transactionId = extractTransactionId(body.get("paymentDetails"));
+
+            Long expireAt = null;
+            if (body.get("expireAt") instanceof Number) {
+                expireAt = ((Number) body.get("expireAt")).longValue();
+            }
+
+            boolean expired = expireAt != null && System.currentTimeMillis() > expireAt;
+
+            if ("COMPLETED".equalsIgnoreCase(state)) {
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.SUCCESS, transactionId);
+
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "SUCCESS",
+                        "message", "Payment verified as successful"
+                ));
+
+            } else if ("FAILED".equalsIgnoreCase(state)) {
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.FAILED, transactionId);
+
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "FAILED",
+                        "message", "Payment verified as failed"
+                ));
+
+            } else if ("CANCELLED".equalsIgnoreCase(state)
+                    || "EXPIRED".equalsIgnoreCase(state)
+                    || expired) {
+
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.CANCELLED, transactionId);
+
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "CANCELLED",
+                        "message", "Payment cancelled or expired"
+                ));
+
+            } else {
+                markLinkedEntitiesAfterVerification(txn, PaymentStatus.PENDING, transactionId);
+
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "PENDING",
+                        "message", "Payment is still pending"
+                ));
+            }
+
+        } catch (RestClientResponseException e) {
+            e.printStackTrace();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "success", false,
+                            "message", "Status verification failed",
+                            "error", e.getMessage(),
+                            "body", e.getResponseBodyAsString()
+                    ));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "success", false,
+                            "message", "Status verification failed",
+                            "error", e.getMessage()
+                    ));
+        }
     }
 
     // ================= ADMIN PROPERTY PREMIUM PENDING =================
@@ -591,6 +870,9 @@ public class PremiumSubscriptionController {
         List<Map<String, Object>> response = new ArrayList<>();
 
         for (Property property : properties) {
+            if (!"SUCCESS".equalsIgnoreCase(property.getPaymentStatus())) {
+                continue;
+            }
 
             Map<String, Object> map = new HashMap<>();
             map.put("propertyId", property.getId());
@@ -666,6 +948,7 @@ public class PremiumSubscriptionController {
         if (owner != null) {
             owner.setPremiumActive(true);
             owner.setPremiumStatus("APPROVED");
+            owner.setPaymentStatus("APPROVED");
             propertyOwnerRepository.save(owner);
         }
 
@@ -721,9 +1004,37 @@ public class PremiumSubscriptionController {
 
         propertyRepository.save(property);
 
+        PropertyOwner owner = property.getPropertyOwner();
+        if (owner != null) {
+            owner.setPremiumActive(false);
+            owner.setPremiumStatus("REJECTED");
+            owner.setPaymentStatus("REJECTED");
+            propertyOwnerRepository.save(owner);
+        }
+
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Property premium rejected successfully"
         ));
+    }
+
+    @GetMapping("/premium/check-status/{orderId}")
+    public ResponseEntity<?> checkStatus(@PathVariable String orderId) {
+        Optional<PaymentTransaction> txnOpt = paymentRepo.findByOrderId(orderId);
+
+        if (txnOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Order not found"));
+        }
+
+        PaymentTransaction txn = txnOpt.get();
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "orderId", txn.getOrderId(),
+                        "status", txn.getPaymentStatus(),
+                        "transactionId", txn.getTransactionId()
+                )
+        );
     }
 }

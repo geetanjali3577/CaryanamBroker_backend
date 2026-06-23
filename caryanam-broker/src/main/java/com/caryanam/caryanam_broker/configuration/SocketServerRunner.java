@@ -18,7 +18,7 @@ public class SocketServerRunner {
     @PostConstruct
     public void start() {
         server.start();
-        System.out.println(" Socket.IO Server Started on port 8085");
+        System.out.println(" Socket.IO Server Started on port 8084");
     }
 
     @PreDestroy

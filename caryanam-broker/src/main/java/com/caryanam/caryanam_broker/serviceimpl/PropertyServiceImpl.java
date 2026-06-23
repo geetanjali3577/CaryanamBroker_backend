@@ -170,6 +170,7 @@ public class PropertyServiceImpl implements PropertyService {
         property.setLikesCount(0);
         property.setViewsCount(0);
 
+        //changesforphonepe
         if (Boolean.TRUE.equals(owner.getFreeOwner()) && !Boolean.TRUE.equals(owner.getFreePropertyUsed())) {
             property.setPremiumStatus(PremiumStatus.FREE_ACTIVE);
             property.setPremiumStartDate(java.time.LocalDateTime.now());
@@ -183,7 +184,8 @@ public class PropertyServiceImpl implements PropertyService {
             owner.setPremiumStatus("FREE_ACTIVE");
             propertyOwnerRepository.save(owner);
         } else {
-            property.setPremiumStatus(PremiumStatus.PAYMENT_PENDING);
+            property.setPremiumStatus(PremiumStatus.NONE);
+            property.setPaymentStatus("UNPAID");
             property.setIsFirstFreeProperty(false);
             property.setPremiumActive(false);
             property.setStatus(AppConstants.PENDING);

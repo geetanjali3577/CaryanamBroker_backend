@@ -60,6 +60,8 @@ public class Property {
         this.premiumActive = premiumActive;
     }
 
+    //changesforphonepe
+    @Transient
     public boolean isPremiumActive() {
         return premiumActive != null && premiumActive;
     }

@@ -32,139 +32,183 @@ public class PhonePeServiceImpl implements PhonePeService {
     private final UserRepository userRepository;
     @Autowired
     private PaymentTransactionRepository paymentRepo;
-//    @Override
-//    public PremiumPaymentResponseDto createPremiumOrder(Long userId) {
-//        String accessToken = getAccessToken();
-//
-//        System.out.println("PHONEPE TOKEN = " + accessToken);
-//        User user =
-//                userRepository.findById(userId)
-//                        .orElseThrow();
-//
-//        String orderId =
-//                "PREMIUM_" + System.currentTimeMillis();
-//
-//        user.setPhonePeOrderId(orderId);
-//
-//        user.setPaymentStatus("PENDING");
-//
-//        user.setPremiumAmount(116.82);
-//
-//        userRepository.save(user);
-//
-//        PaymentTransaction txn =
-//                new PaymentTransaction();
-//
-//        txn.setUserId(userId);
-//
-//        txn.setOrderId(orderId);
-//
-//        txn.setAmount(116.82);
-//        txn.setBaseAmount(99.0);
-//        txn.setGstAmount(17.82);
-//        txn.setTotalAmount(116.82);
-//
-//        txn.setPaymentStatus(PaymentStatus.PENDING);
-//
-//        txn.setCreatedAt(LocalDateTime.now());
-//
-//        paymentRepo.save(txn);
-//
-////        return new PremiumPaymentResponseDto(
-////                orderId,
-////                116.82,
-////                null,
-////                "PENDING"
-////        );
-//        return new PremiumPaymentResponseDto(
-//                orderId,
-//                116.82,
-//                "https://business.phonepe.com",
-//                "PENDING"
-//        );
-//    }
-//---------------------------------------------------------new Method-----------------------
-@Override
-public PremiumPaymentResponseDto createPremiumOrder(Long userId) {
 
-    String accessToken = getAccessToken();
+    // ================= V2 OAuth: Get Access Token =================
+    @Override
+    public String getAccessToken() {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
 
-    User user = userRepository.findById(userId)
-            .orElseThrow();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-    String orderId = "PREMIUM_" + System.currentTimeMillis();
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", phonePeConfig.getClientId());
+            body.add("client_secret", phonePeConfig.getClientSecret());
+            body.add("client_version", phonePeConfig.getClientVersion());
+            body.add("grant_type", "client_credentials");
 
-    // TEST AMOUNT
-    double baseAmount = 1.0;
-    double gstAmount = 0.0;
-    double totalAmount = 1.0;
-    long phonePeAmount = 100L; // ₹1
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
-    user.setPhonePeOrderId(orderId);
-    user.setPaymentStatus("PENDING");
-    user.setPremiumAmount(totalAmount);
-    userRepository.save(user);
+            System.out.println("========== PhonePe V2 OAuth Token Request ==========");
+            System.out.println("URL: " + phonePeConfig.getAuthUrl());
+            System.out.println("ClientId: " + phonePeConfig.getClientId());
 
-    PaymentTransaction txn = new PaymentTransaction();
-    txn.setUserId(userId);
-    txn.setOrderId(orderId);
-    txn.setAmount(totalAmount);
-    txn.setBaseAmount(baseAmount);
-    txn.setGstAmount(gstAmount);
-    txn.setTotalAmount(totalAmount);
-    txn.setPaymentGateway("PhonePe");
-    txn.setPaymentStatus(PaymentStatus.PENDING);
-    txn.setCreatedAt(LocalDateTime.now());
-    paymentRepo.save(txn);
+            System.out.println("AUTH URL = " + phonePeConfig.getAuthUrl());
+            System.out.println("CLIENT ID = " + phonePeConfig.getClientId());
 
-    RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    phonePeConfig.getAuthUrl(),
+                    request,
+                    Map.class
+            );
 
-    HttpHeaders headers = new HttpHeaders();
-    headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.set("Authorization", "O-Bearer " + accessToken);
+            Map responseBody = response.getBody();
+            System.out.println("OAuth Response: " + responseBody);
 
-    Map<String, Object> merchantUrls = new HashMap<>();
-    merchantUrls.put("redirectUrl", phonePeConfig.getRedirectUrl());
+            if (responseBody == null || !responseBody.containsKey("access_token")) {
+                throw new RuntimeException("Failed to get PhonePe OAuth token. Response: " + responseBody);
+            }
 
-    Map<String, Object> paymentFlow = new HashMap<>();
-    paymentFlow.put("type", "PG_CHECKOUT");
-    paymentFlow.put("merchantUrls", merchantUrls);
+            return responseBody.get("access_token").toString();
 
-    Map<String, Object> metaInfo = new HashMap<>();
-    metaInfo.put("udf1", "USER_PREMIUM");
-    metaInfo.put("udf2", String.valueOf(userId));
-
-    Map<String, Object> requestBody = new HashMap<>();
-    requestBody.put("merchantOrderId", orderId);
-    requestBody.put("amount", phonePeAmount);
-    requestBody.put("expireAfter", 1200);
-    requestBody.put("paymentFlow", paymentFlow);
-    requestBody.put("metaInfo", metaInfo);
-
-    HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-
-    ResponseEntity<Map> response = restTemplate.postForEntity(
-            phonePeConfig.getPayUrl(),
-            request,
-            Map.class
-    );
-
-    Map body = response.getBody();
-
-    if (body == null || body.get("redirectUrl") == null) {
-        throw new RuntimeException("PhonePe redirectUrl not received: " + body);
+        } catch (Exception e) {
+            System.err.println("PhonePe OAuth token error: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to get PhonePe OAuth access token: " + e.getMessage(), e);
+        }
     }
 
-    String redirectUrl = body.get("redirectUrl").toString();
+    // ================= V2 PG_CHECKOUT: Create Premium Order =================
+    @Override
+    public PremiumPaymentResponseDto createPremiumOrder(Long userId) {
 
-    return new PremiumPaymentResponseDto(
-            orderId,
-            totalAmount,
-            redirectUrl,
-            "PENDING"
-    );
-}
-//---------------------------------------------------
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+
+        String orderId = "PREMIUM_" + System.currentTimeMillis();
+
+        // TEST AMOUNT ₹1
+//        double baseAmount = 1.0;
+//        double gstAmount = 0.0;
+//        double totalAmount = 1.0;
+//        long phonePeAmount = 100L; // ₹1 = 100 paisa
+        double baseAmount = 99.0;
+        double gstAmount = 17.82;
+        double totalAmount = 116.82;
+        long phonePeAmount = Math.round(totalAmount * 100);
+
+        // Set user state to PAYMENT_PENDING before calling PhonePe
+        user.setPhonePeOrderId(orderId);
+        user.setPaymentStatus("PENDING");
+        user.setPremiumStatus("PAYMENT_PENDING");
+        user.setPremiumAmount(totalAmount);
+        user.setPremiumActive(false);
+        user.setPremiumCount(user.getPremiumCount() + 1);
+        userRepository.save(user);
+
+        // Create PaymentTransaction as PENDING
+        PaymentTransaction txn = new PaymentTransaction();
+        txn.setUserId(userId);
+        txn.setOrderId(orderId);
+        txn.setAmount(totalAmount);
+        txn.setBaseAmount(baseAmount);
+        txn.setGstAmount(gstAmount);
+        txn.setTotalAmount(totalAmount);
+        txn.setPaymentGateway("PhonePe");
+        txn.setPaymentStatus(PaymentStatus.PENDING);
+        txn.setCreatedAt(LocalDateTime.now());
+        paymentRepo.save(txn);
+
+        try {
+            // Step 1: Get OAuth access token
+            String accessToken = getAccessToken();
+
+            // Step 2: Build V2 PG_CHECKOUT payload
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("merchantOrderId", orderId);
+            payload.put("amount", phonePeAmount);
+            payload.put("expireAfter", 1200); // 20 minutes
+
+            Map<String, Object> paymentFlow = new HashMap<>();
+            Map<String, Object> payPageConfig = new HashMap<>();
+            payPageConfig.put("redirectUrl", phonePeConfig.getRedirectUrl());
+            paymentFlow.put("paymentFlow", Map.of("type", "PG_CHECKOUT", "merchantUrls", payPageConfig));
+
+            // Merge paymentFlow into payload
+            payload.put("paymentFlow", paymentFlow.get("paymentFlow"));
+
+            String jsonPayload = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(payload);
+
+            System.out.println("========== PhonePe V2 Pay Request ==========");
+            System.out.println("URL: " + phonePeConfig.getPayUrl());
+            System.out.println("OrderId: " + orderId);
+            System.out.println("Amount (paise): " + phonePeAmount);
+            System.out.println("Payload: " + jsonPayload);
+
+            // Step 3: Call PhonePe V2 checkout API
+            RestTemplate restTemplate = new RestTemplate();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "O-Bearer " + accessToken);
+
+            HttpEntity<String> request = new HttpEntity<>(jsonPayload, headers);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    phonePeConfig.getPayUrl(),
+                    request,
+                    Map.class
+            );
+
+            System.out.println("========== PhonePe V2 Response ==========");
+            System.out.println("Status: " + response.getStatusCode());
+            System.out.println("Body: " + response.getBody());
+
+            Map body = response.getBody();
+            if (body == null) {
+                throw new RuntimeException("PhonePe V2 response body is null");
+            }
+
+            // V2 response: { "orderId": "...", "state": "PENDING", "redirectUrl": "https://..." }
+            String redirectUrl = null;
+            if (body.containsKey("redirectUrl")) {
+                redirectUrl = body.get("redirectUrl").toString();
+            }
+
+            if (redirectUrl == null || redirectUrl.isBlank()) {
+                throw new RuntimeException("PhonePe V2 did not return a redirectUrl. Response: " + body);
+            }
+
+            // Save PhonePe's orderId if available
+            if (body.containsKey("orderId")) {
+                txn.setTransactionId(body.get("orderId").toString());
+                paymentRepo.save(txn);
+            }
+
+            return new PremiumPaymentResponseDto(
+                    orderId,
+                    totalAmount,
+                    redirectUrl,
+                    "PENDING"
+            );
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            // Mark payment as FAILED on any error
+            txn.setPaymentStatus(PaymentStatus.FAILED);
+            txn.setPaymentResponse("PhonePe V2 payment initiation failed: " + e.getMessage());
+            paymentRepo.save(txn);
+
+            user.setPaymentStatus("FAILED");
+            user.setPremiumStatus("REJECTED");
+            userRepository.save(user);
+
+            throw new RuntimeException("Error during PhonePe V2 order creation: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public void paymentSuccess(
             String orderId,
@@ -177,119 +221,18 @@ public PremiumPaymentResponseDto createPremiumOrder(Long userId) {
         txn.setPaymentStatus(PaymentStatus.SUCCESS);
         txn.setTransactionId(transactionId);
         paymentRepo.save(txn);
+
         User user =
                 userRepository.findById(txn.getUserId())
                         .orElseThrow();
         user.setPaymentStatus("SUCCESS");
         user.setPhonePeTransactionId(transactionId);
-//
-//        user.setPremiumActive(true);
-//        user.setPremiumStatus("APPROVED");
-//        user.setPropertyLimit(100);
 
         userRepository.save(user);
     }
 
     @Override
     public void propertyPaymentSuccess(String orderId, String transactionId) {
-
-    }
-
-    //----------------------------------------Phone Pay Token--------------------------
-//    @Override
-//    public String getAccessToken() {
-//
-//        System.out.println("========== PHONEPE ==========");
-//        System.out.println("CLIENT ID : " + phonePeConfig.getClientId());
-//        System.out.println("CLIENT SECRET : " + phonePeConfig.getClientSecret());
-//
-//        String url =
-//                "https://api-preprod.phonepe.com/apis/identity-manager/v1/oauth/token";
-//
-//        RestTemplate restTemplate = new RestTemplate();
-//
-//        HttpHeaders headers = new HttpHeaders();
-//        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-//
-//        MultiValueMap<String, String> body =
-//                new LinkedMultiValueMap<>();
-//FV
-//        body.add("client_id",
-//                phonePeConfig.getClientId());
-//
-//        body.add("client_secret",
-//                phonePeConfig.getClientSecret());
-//
-//        body.add("grant_type",
-//                "client_credentials");
-//
-//        HttpEntity<MultiValueMap<String, String>> request =
-//                new HttpEntity<>(body, headers);
-//
-//        try {
-//
-//            ResponseEntity<String> response =
-//                    restTemplate.postForEntity(
-//                            url,
-//                            request,
-//                            String.class);
-//
-//            System.out.println("========== RESPONSE ==========");
-//            System.out.println(response.getBody());
-//
-//            return response.getBody();
-//
-//        } catch (Exception e) {
-//
-//            System.out.println("========== ERROR ==========");
-//            e.printStackTrace();
-//
-//            return e.getMessage();
-//        }
-//    }
-
-    @Override
-    public String getAccessToken() {
-
-        String url =
-                "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
-
-        RestTemplate restTemplate =
-                new RestTemplate();
-
-        HttpHeaders headers =
-                new HttpHeaders();
-
-        headers.setContentType(
-                MediaType.APPLICATION_FORM_URLENCODED);
-
-        MultiValueMap<String, String> body =
-                new LinkedMultiValueMap<>();
-
-        body.add("client_id",
-                phonePeConfig.getClientId());
-
-        body.add("client_version",
-                String.valueOf(
-                        phonePeConfig.getClientVersion()));
-
-        body.add("client_secret",
-                phonePeConfig.getClientSecret());
-
-        body.add("grant_type",
-                "client_credentials");
-
-        HttpEntity<MultiValueMap<String, String>> request =
-                new HttpEntity<>(body, headers);
-
-        ResponseEntity<Map> response =
-                restTemplate.postForEntity(
-                        url,
-                        request,
-                        Map.class);
-
-        return response.getBody()
-                .get("access_token")
-                .toString();
+        // Property payment handled by PremiumSubscriptionController webhook
     }
 }

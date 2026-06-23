@@ -46,7 +46,7 @@ public class adminController {
         List<User> users = userRepository.findAll();
         List<Map<String, Object>> response = new ArrayList<>();
         for (User user : users) {
-            if ("PENDING".equals(currentStatus(user.getPremiumStatus()))) {
+            if ("PENDING".equals(currentStatus(user.getPremiumStatus())) && "SUCCESS".equalsIgnoreCase(user.getPaymentStatus())) {
                 Map<String, Object> map = new HashMap<>();
                 map.put("userId", user.getUserId());
                 map.put("fullName", user.getFullName());
@@ -78,12 +78,9 @@ public class adminController {
                     );
 
             for (Property property : properties) {
-
-                // ONLY PENDING PROPERTY
-//                if ("PENDING".equalsIgnoreCase(
-//                        property.getPaymentStatus())) {
-                if ("SUCCESS".equalsIgnoreCase(
-                        property.getPaymentStatus())) {
+                //changesforphonepe
+                if (property.getPremiumStatus() == com.caryanam.caryanam_broker.enums.PremiumStatus.PENDING_APPROVAL 
+                        && "SUCCESS".equalsIgnoreCase(property.getPaymentStatus())) {
 
                     Map<String, Object> map =
                             new HashMap<>();
@@ -172,7 +169,10 @@ public class adminController {
                 propertyRepository.findByPropertyOwner_OwnerIdOrderByCreatedAtDesc(ownerId);
 
         for (Property property : properties) {
-
+            //changesforphonepe
+            property.setPremiumStatus(com.caryanam.caryanam_broker.enums.PremiumStatus.ACTIVE);
+            property.setPremiumStartDate(java.time.LocalDateTime.now());
+            property.setPremiumEndDate(java.time.LocalDateTime.now().plusDays(30));
             property.setPaymentStatus("APPROVED");
             property.setPremiumActive(true);
 
@@ -262,7 +262,8 @@ public class adminController {
                 propertyRepository.findByPropertyOwner_OwnerIdOrderByCreatedAtDesc(ownerId);
 
         for (Property property : properties) {
-
+            //changesforphonepe
+            property.setPremiumStatus(com.caryanam.caryanam_broker.enums.PremiumStatus.REJECTED);
             property.setPaymentStatus("REJECTED");
             property.setPremiumActive(false);
 
@@ -347,8 +348,15 @@ public class adminController {
         }
 
         // UPDATE PROPERTY STATUS
-        property.setPaymentStatus("APPROVED");
+        //changesforphonepe
+        property.setPremiumStatus(com.caryanam.caryanam_broker.enums.PremiumStatus.ACTIVE);
+        property.setPremiumStartDate(java.time.LocalDateTime.now());
+        property.setPremiumEndDate(java.time.LocalDateTime.now().plusDays(30));
+        property.setPremiumApprovedBy("ADMIN");
+        property.setPremiumApprovedDate(java.time.LocalDateTime.now());
         property.setPremiumActive(true);
+        property.setPaymentStatus("APPROVED");
+        property.setStatus(com.caryanam.caryanam_broker.appconstant.AppConstants.ACTIVE);
         propertyRepository.save(property);
 
         // UPDATE OWNER STATUS
@@ -384,17 +392,21 @@ public class adminController {
             return ResponseHandler.generateResponse("Property not found", HttpStatus.BAD_REQUEST, null);
         }
 
-        if (!"PENDING".equalsIgnoreCase(property.getPaymentStatus())) {
+        if (property.getPremiumStatus() != com.caryanam.caryanam_broker.enums.PremiumStatus.PENDING_APPROVAL 
+                && !"PENDING".equalsIgnoreCase(property.getPaymentStatus()) 
+                && !"SUCCESS".equalsIgnoreCase(property.getPaymentStatus())) {
             return ResponseHandler.generateResponse(
-                    "Property is not in pending status",
+                    "Property is not in a pending premium approval state",
                     HttpStatus.BAD_REQUEST,
                     null
             );
         }
 
         // UPDATE PROPERTY STATUS
-        property.setPaymentStatus("REJECTED");
+        //changesforphonepe
+        property.setPremiumStatus(com.caryanam.caryanam_broker.enums.PremiumStatus.REJECTED);
         property.setPremiumActive(false);
+        property.setPaymentStatus("REJECTED");
         propertyRepository.save(property);
 
         return ResponseHandler.generateResponse(

@@ -153,16 +153,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/premium/callback").permitAll()
+                        .requestMatchers("/premium/callback", "/premium/verify/**", "/premium/payment-redirect").permitAll()
                         .requestMatchers("/premium/buy/**", "/premium/status/**").hasAnyRole("PROPERTY_OWNER", "ADMIN")
                         .requestMatchers("/admin/premium/**").hasRole("ADMIN")
 //                        .requestMatchers("/api/user/buyPremium/**").permitAll()
-//                        .requestMatchers("/api/owner/buyPremiumByOwner/**").permitAll()
                                 .requestMatchers("/api/user/buyPremium/**")
                                 .hasAnyRole("USER","ADMIN")
-
-                                .requestMatchers("/api/owner/buyPremiumByOwner/**")
-                                .hasAnyRole("PROPERTY_OWNER","ADMIN")
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/property-images/**").permitAll()
                         .requestMatchers("/api/owner/save-facilities","/api/owner/get-facilities").permitAll()

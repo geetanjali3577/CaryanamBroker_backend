@@ -485,102 +485,11 @@ public class OwnerPropertyController {
 public ResponseEntity<Object> buyPremium(
         @PathVariable Long ownerId,
         @RequestParam Long propertyId) {
-
-    PropertyOwner owner = propertyOwnerRepository
-            .findById(ownerId)
-            .orElse(null);
-
-    if (owner == null) {
-        return ResponseHandler.generateResponse(
-                MessageConfig.OWNER_NOT_FOUND,
-                HttpStatus.BAD_REQUEST,
-                null
-        );
-    }
-
-    Property property = propertyRepository
-            .findById(propertyId)
-            .orElse(null);
-
-    if (property == null) {
-        return ResponseHandler.generateResponse(
-                "Property not found",
-                HttpStatus.BAD_REQUEST,
-                null
-        );
-    }
-
-    // PROPERTY BELONGS TO OWNER
-    if (property.getPropertyOwner() == null ||
-            !property.getPropertyOwner().getOwnerId().equals(ownerId)) {
-
-        return ResponseHandler.generateResponse(
-                "Property does not belong to owner",
-                HttpStatus.BAD_REQUEST,
-                null
-        );
-    }
-
-    // ALREADY APPROVED
-    if ("APPROVED".equalsIgnoreCase(property.getPaymentStatus())) {
-
-        return ResponseHandler.generateResponse(
-                "Property already approved",
-                HttpStatus.BAD_REQUEST,
-                null
-        );
-    }
-
-    // PAYMENT ALREADY PENDING
-    if ("PENDING".equalsIgnoreCase(property.getPaymentStatus())) {
-
-        return ResponseHandler.generateResponse(
-                "Payment already pending for this property",
-                HttpStatus.BAD_REQUEST,
-                null
-        );
-    }
-
-    double amount = 116.82;
-
-    String orderId =
-            "PROPERTY_" + System.currentTimeMillis();
-
-    // PROPERTY UPDATE
-    property.setPaymentStatus("PENDING");
-    property.setPaymentAmount(amount);
-    property.setPaymentOrderId(orderId);
-
-    propertyRepository.save(property);
-
-    // PAYMENT TRANSACTION SAVE
-    PaymentTransaction txn =
-            new PaymentTransaction();
-
-    txn.setOwnerId(ownerId);              // field asel tar
-    txn.setPropertyId(propertyId);        // field asel tar
-    txn.setOrderId(orderId);
-    txn.setAmount(amount);
-    txn.setBaseAmount(99.0);
-    txn.setGstAmount(17.82);
-    txn.setTotalAmount(116.82);
-    txn.setPaymentStatus(PaymentStatus.PENDING);
-    txn.setPaymentType("PROPERTY_PREMIUM");
-    txn.setCreatedAt(LocalDateTime.now());
-
-    paymentRepo.save(txn);
-
-    Map<String, Object> response = new HashMap<>();
-
-    response.put("propertyId", propertyId);
-    response.put("orderId", orderId);
-    response.put("amount", amount);
-    response.put("paymentStatus", "PENDING");
-
+    //changesforphonepe
     return ResponseHandler.generateResponse(
-            MessageConfig.PAYMENT_INITIATED,
-            HttpStatus.OK,
-            response
+            "This manual payment initiation endpoint is deprecated and disabled. Please use /premium/buy/{propertyId} for PhonePe secure checkout.",
+            HttpStatus.BAD_REQUEST,
+            null
     );
 }
 
@@ -640,40 +549,10 @@ public ResponseEntity<Object> buyPremium(
 public ResponseEntity<Object> paymentSuccess(
         @RequestParam String orderId,
         @RequestParam String transactionId) {
-
-    Property property = propertyRepository
-            .findByPaymentOrderId(orderId)
-            .orElse(null);
-
-    if (property == null) {
-        return ResponseHandler.generateResponse(
-                "Invalid Order Id",
-                HttpStatus.BAD_REQUEST,
-                null
-        );
-    }
-
-    // PROPERTY UPDATE
-    property.setPaymentStatus("SUCCESS");
-    property.setPaymentTransactionId(transactionId);
-
-    propertyRepository.save(property);
-
-    // TRANSACTION UPDATE
-    PaymentTransaction txn =
-            paymentRepo.findByOrderId(orderId)
-                    .orElse(null);
-
-    if (txn != null) {
-        txn.setTransactionId(transactionId);
-        txn.setPaymentStatus(PaymentStatus.SUCCESS);
-
-        paymentRepo.save(txn);
-    }
-
+    //changesforphonepe
     return ResponseHandler.generateResponse(
-            "Payment Success",
-            HttpStatus.OK,
+            "This endpoint is disabled for security reasons. Payments must be verified securely via PhonePe callback/verify APIs.",
+            HttpStatus.BAD_REQUEST,
             null
     );
 }

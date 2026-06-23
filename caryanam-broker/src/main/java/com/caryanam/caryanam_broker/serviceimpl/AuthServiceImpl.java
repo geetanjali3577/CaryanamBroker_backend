@@ -60,20 +60,20 @@ public class AuthServiceImpl implements AuthService {
     private EmailVerificationOtpRepository emailVerificationOtpRepository;
 
     private static final Set<String> tokenBlacklist = new HashSet<>();
-
-    //  USER REGISTRATION
     @Override
     public RegisterResponseDTO registerUser(RegisterRequestDTO dto) {
 
         if (isEmailAlreadyUsed(dto.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
+
         EmailVerificationOtp emailOtp =
                 emailVerificationOtpRepository.findByEmail(dto.getEmail());
 
         if (emailOtp == null || !emailOtp.isVerified()) {
             throw new RuntimeException("Please verify email first");
         }
+
         User user = new User();
         user.setFullName(dto.getFullName());
         user.setMobileNumber(String.valueOf(dto.getMobileNumber()));
@@ -81,6 +81,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setRole(Role.USER);
         user.setIsActive("true");
+
         User saved = userRepository.save(user);
 
         return RegisterResponseDTO.builder()
@@ -88,21 +89,22 @@ public class AuthServiceImpl implements AuthService {
                 .fullName(saved.getFullName())
                 .email(saved.getEmail())
                 .role(saved.getRole().name())
-
                 .build();
     }
-
+    //  USER REGISTRATION
     @Override
     public RegisterResponseDTO registerPropertyOwner(RegisterRequestDTO dto) {
         if (isEmailAlreadyUsed(dto.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
+
         EmailVerificationOtp emailOtp =
                 emailVerificationOtpRepository.findByEmail(dto.getEmail());
 
         if (emailOtp == null || !emailOtp.isVerified()) {
             throw new RuntimeException("Please verify email first");
         }
+
         PropertyOwner owner = new PropertyOwner();
         owner.setFullName(dto.getFullName());
         owner.setMobileNumber(String.valueOf(dto.getMobileNumber()));
@@ -111,15 +113,21 @@ public class AuthServiceImpl implements AuthService {
         owner.setRole(Role.PROPERTY_OWNER);
         owner.setIsActive("true");
 
-        long totalOwners = propertyOwerRepository.count();
-        if (totalOwners < 100) {
-            owner.setFreeOwner(true);
-        } else {
-            owner.setFreeOwner(false);
-        }
+        // Save first so we get the real DB-generated ownerId.
+        owner.setFreeOwner(false);
         owner.setFreePropertyUsed(false);
 
         PropertyOwner saved = propertyOwerRepository.save(owner);
+
+        // First 100 owners are based on actual ownerId, not current row count.
+        boolean eligibleForFirstFreeProperty =
+                saved.getOwnerId() != null && saved.getOwnerId() <= 100;
+
+        saved.setFreeOwner(eligibleForFirstFreeProperty);
+        saved.setFreePropertyUsed(false);
+
+        saved = propertyOwerRepository.save(saved);
+
         return RegisterResponseDTO.builder()
                 .id(saved.getOwnerId())
                 .fullName(saved.getFullName())
@@ -127,6 +135,7 @@ public class AuthServiceImpl implements AuthService {
                 .role(saved.getRole().name())
                 .build();
     }
+
 
 
 

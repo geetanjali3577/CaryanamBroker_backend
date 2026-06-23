@@ -74,9 +74,22 @@ public class GlobalExceptionHandler {
                     .body(new ResponseDto<>(401, "Invalid email or password", null));
         }
         @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
-        public ResponseEntity<ResponseDto<String>> handleDuplicateEmail() {
+        public ResponseEntity<ResponseDto<String>> handleDuplicateEmail(org.springframework.dao.DataIntegrityViolationException ex) {
+            String message = "Database constraint violation";
+            if (ex.getRootCause() != null) {
+                String rootMsg = ex.getRootCause().getMessage();
+                if (rootMsg != null) {
+                    if (rootMsg.toLowerCase().contains("email")) {
+                        message = "Email already exists";
+                    } else if (rootMsg.toLowerCase().contains("mobile") || rootMsg.toLowerCase().contains("phone")) {
+                        message = "Mobile number already exists";
+                    } else {
+                        message = rootMsg;
+                    }
+                }
+            }
             return ResponseEntity.status(400)
-                    .body(new ResponseDto<>(400, "Email already exists", null));
+                    .body(new ResponseDto<>(400, message, null));
         }
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<?> handleBadRequest(BadRequestException ex) {
