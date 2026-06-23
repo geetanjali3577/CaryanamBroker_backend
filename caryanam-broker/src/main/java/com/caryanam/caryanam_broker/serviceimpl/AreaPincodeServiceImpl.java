@@ -16,8 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class AreaPincodeServiceImpl
-        implements AreaPincodeService {
+public class AreaPincodeServiceImpl implements AreaPincodeService {
 
     @Autowired
     private AreaPincodeRepository
@@ -168,4 +167,10 @@ public class AreaPincodeServiceImpl
 
         return response;
     }
+
+    @Override
+    public int count() {
+        return 0;
+    }
+
 }

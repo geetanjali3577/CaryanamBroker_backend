@@ -9,4 +9,6 @@ public interface AreaPincodeService {
     String uploadExcel(MultipartFile file);
     List<String> getNearbyData(String nearbyPincode);
 
+    int count();
+    //long count();
 }
