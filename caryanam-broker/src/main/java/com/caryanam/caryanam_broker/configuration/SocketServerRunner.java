@@ -24,6 +24,6 @@ public class SocketServerRunner {
     @PreDestroy
     public void stop() {
         server.stop();
-        System.out.println(" Socket.IO Server Stopped");
+        System.out.println("Socket.IO Server Stopped");
     }
 }
