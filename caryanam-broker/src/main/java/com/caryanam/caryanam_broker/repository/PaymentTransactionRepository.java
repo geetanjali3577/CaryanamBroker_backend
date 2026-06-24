@@ -13,5 +13,8 @@ public interface PaymentTransactionRepository
 
     Optional<PaymentTransaction> findByOrderId(String orderId);
 
+    Optional<PaymentTransaction> findByMerchantOrderId(String merchantOrderId);
+
     Optional<PaymentTransaction> findFirstByPropertyIdAndPaymentStatus(Long propertyId, PaymentStatus paymentStatus);
 }
+

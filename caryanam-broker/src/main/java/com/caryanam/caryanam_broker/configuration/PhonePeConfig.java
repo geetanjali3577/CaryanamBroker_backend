@@ -73,4 +73,16 @@ public class PhonePeConfig {
 
     @Value("${phonepe.webhook.password}")
     private String webhookPassword;
+
+    @Value("${phonepe.sdk-order-url}")
+    private String sdkOrderUrl;
+
+    @Value("${phonepe.status-url}")
+    private String statusUrl;
+
+    @Value("${phonepe.environment}")
+    private String environment;
+
+    @Value("${phonepe.merchant-id}")
+    private String merchantId;
 }

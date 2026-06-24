@@ -180,6 +180,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**","/api/auth/register").permitAll()
                         .requestMatchers("/chat/**","/socket.io/**").permitAll()
                         .requestMatchers("/api/chat/**").permitAll()
+                        // PhonePe Mobile SDK endpoints - authenticated users/owners only
+                        .requestMatchers("/api/phonepe/mobile/create-order").hasAnyRole("USER", "PROPERTY_OWNER", "ADMIN")
+                        .requestMatchers("/api/phonepe/mobile/verify/**").hasAnyRole("USER", "PROPERTY_OWNER", "ADMIN")
                         .anyRequest().authenticated()
                 )
 

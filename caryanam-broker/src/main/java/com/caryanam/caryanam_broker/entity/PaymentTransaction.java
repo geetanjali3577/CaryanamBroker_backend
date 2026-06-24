@@ -20,6 +20,7 @@ public class PaymentTransaction {
 
     private String paymentType;
     private String orderId;
+    private String merchantOrderId;
     private String transactionId;
     private Double amount;
 
@@ -44,5 +45,15 @@ public class PaymentTransaction {
     @Column(name = "created_by")
     private String createdBy;
 
+    private String premiumFor; // USER or OWNER
+
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }
+
