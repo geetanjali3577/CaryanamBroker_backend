@@ -86,6 +86,7 @@ public class PropertyDto {
     private Integer likesCount;
     private Integer viewsCount;
     private String status;
+    private Boolean rented;
 
     private String city;
     private String address;
@@ -122,10 +123,7 @@ public class PropertyDto {
 
     private Boolean liked;
 
-    /*
-      Explicit getter/setter ठेवले आहेत कारण काही वेळा Lombok
-      Boolean field "isFirstFreeProperty" साठी method name mismatch करतो.
-    */
+
     public Boolean getIsFirstFreeProperty() {
         return isFirstFreeProperty;
     }

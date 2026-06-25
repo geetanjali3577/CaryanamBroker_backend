@@ -52,6 +52,7 @@ public class Property {
     @Column(name = "premium_active")
     private Boolean premiumActive = false;
 
+
     public Boolean getPremiumActive() {
         return premiumActive;
     }
@@ -80,6 +81,8 @@ public class Property {
 
     private String paymentTransactionId;
     private LocalDateTime paymentDate;
+    @Column(name = "is_rented")
+    private Boolean rented = false;
     
     @Enumerated(EnumType.STRING)
     @Column(name = "premium_status")

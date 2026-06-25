@@ -1070,6 +1070,7 @@ public class PropertyServiceImpl implements PropertyService {
         dto.setMobileNumber(property.getMobileNumber());
         dto.setApartmentName(property.getApartmentName());
         dto.setStatus(property.getStatus());
+        dto.setRented(property.getRented());
         dto.setLikesCount(property.getLikesCount());
         dto.setViewsCount(property.getViewsCount());
 
@@ -1121,6 +1122,7 @@ public class PropertyServiceImpl implements PropertyService {
         property.setApartmentName(propertyDto.getApartmentName());
         property.setLikesCount(0);
         property.setViewsCount(0);
+        property.setRented(false);
 
         property.setPropertyOwner(owner);
 
@@ -1198,13 +1200,10 @@ public class PropertyServiceImpl implements PropertyService {
                 dto.setNearBy(property.getNearBy());
                 dto.setPincode(property.getPincode());
                 dto.setStatus(property.getStatus());
+                dto.setRented(property.getRented());
 
-                if (property.getPincode() != null
-                        && !property.getPincode().isBlank()) {
-
-                    List<String> nearbyAreas =
-                            areaPincodeService.getNearbyData(property.getPincode());
-
+                if (property.getPincode() != null && !property.getPincode().isBlank()) {
+                    List<String> nearbyAreas = areaPincodeService.getNearbyData(property.getPincode());
                     dto.setNearBy(String.valueOf(nearbyAreas));
                 }
 
@@ -1535,6 +1534,7 @@ public class PropertyServiceImpl implements PropertyService {
                 dto.setPropertyType(property.getPropertyType());
                 dto.setApartmentName(property.getApartmentName());
                 dto.setStatus(property.getStatus());
+                dto.setRented(property.getRented());
             } else {
                 fillBasicPropertyDto(dto, property);
             }
@@ -1594,6 +1594,7 @@ public class PropertyServiceImpl implements PropertyService {
             dto.setLocation(property.getLocation());
             dto.setApartmentName(property.getApartmentName());
             dto.setStatus(property.getStatus());
+            dto.setRented(property.getRented());
 
             setPropertyPremiumFields(dto, property);
             attachDatabaseImages(dto, property.getId());
@@ -1843,6 +1844,7 @@ public class PropertyServiceImpl implements PropertyService {
             dto.setLikesCount(property.getLikesCount());
             dto.setLiked(true);
             dto.setStatus(property.getStatus());
+            dto.setRented(property.getRented());
 
             setPropertyPremiumFields(dto, property);
             attachDatabaseImages(dto, property.getId());
@@ -1858,5 +1860,21 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyLikeRepository
                 .findByUser_UserId(userId)
                 .size();
+    }
+
+    @Override
+    public String markPropertyAsRented(Long propertyId) {
+
+        Property property = propertyRepository.findById(propertyId).orElse(null);
+
+        if (property == null) {
+            return MessageConfig.PROPERTY_NOT_FOUND;
+        }
+
+        property.setRented(true);
+
+        propertyRepository.save(property);
+
+        return "Property Marked As RENTED Successfully";
     }
 }

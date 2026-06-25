@@ -556,4 +556,15 @@ public ResponseEntity<Object> paymentSuccess(
             null
     );
 }
+
+    @PutMapping("/mark-property-rented/{propertyId}")
+    public ResponseEntity<Object> markPropertyAsRented(
+            @PathVariable Long propertyId) {
+
+        return ResponseHandler.generateResponse(
+                "Property marked as RENTED successfully",
+                HttpStatus.OK,
+                propertyService.markPropertyAsRented(propertyId)
+        );
+    }
 }

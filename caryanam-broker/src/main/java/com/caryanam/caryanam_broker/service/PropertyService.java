@@ -39,5 +39,5 @@ public interface PropertyService {
     List<PropertyDto> getLikedProperties(Long userId);
 
     Integer getUserLikedPropertiesCount(Long userId);
-
+    String markPropertyAsRented(Long propertyId);
 }
