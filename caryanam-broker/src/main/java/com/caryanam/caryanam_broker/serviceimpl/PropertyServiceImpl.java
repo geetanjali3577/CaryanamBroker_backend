@@ -1124,14 +1124,7 @@ public class PropertyServiceImpl implements PropertyService {
 
         property.setPropertyOwner(owner);
 
-        /*
-          OWNER FLOW:
-          First 100 owners first property free.
-          First free property:
-          - No payment
-          - No admin request
-          - Direct FREE_ACTIVE + ACTIVE
-        */
+
         if (Boolean.TRUE.equals(owner.getFreeOwner())
                 && !Boolean.TRUE.equals(owner.getFreePropertyUsed())) {
 
@@ -1150,11 +1143,7 @@ public class PropertyServiceImpl implements PropertyService {
             propertyOwnerRepository.save(owner);
 
         } else {
-            /*
-              Second property onwards:
-              Payment required.
-              Admin request should NOT go until payment success.
-            */
+
             property.setPremiumStatus(PremiumStatus.NONE);
             property.setPaymentStatus("UNPAID");
             property.setIsFirstFreeProperty(false);
@@ -1418,11 +1407,7 @@ public class PropertyServiceImpl implements PropertyService {
         int totalImages =
                 propertyImageRepository.countByPropertyId(propertyId);
 
-        /*
-          IMPORTANT:
-          Image upload नंतर unpaid property ACTIVE करू नये.
-          First free / approved active property असेल तरच ACTIVE.
-        */
+
         if (property.getPremiumStatus() == PremiumStatus.FREE_ACTIVE
                 || property.getPremiumStatus() == PremiumStatus.ACTIVE) {
 
@@ -1632,11 +1617,7 @@ public class PropertyServiceImpl implements PropertyService {
 
             fillBasicPropertyDto(dto, property);
 
-            /*
-              IMPORTANT:
-              Owner status ने property status overwrite करू नये.
-              Listing card ला property-level payment/premium status पाहिजे.
-            */
+
             PropertyOwner owner = property.getPropertyOwner();
 
             if (owner != null) {
