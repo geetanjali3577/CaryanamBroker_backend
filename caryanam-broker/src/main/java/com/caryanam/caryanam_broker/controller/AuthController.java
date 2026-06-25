@@ -373,4 +373,5 @@ public class AuthController {
                         "Email verified successfully",
                         null));
     }
+
 }

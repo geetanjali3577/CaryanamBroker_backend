@@ -429,9 +429,32 @@ public class UserController {
             default -> "None";
         };
     }// ================= TEST PHONEPE TOKEN =================
+
     // GET /api/user/token
     @GetMapping("/token")
     public ResponseEntity<?> token() {
         return ResponseEntity.ok(phonePeService.getAccessToken());
+    }
+
+    @DeleteMapping("/delete-account")
+    public ResponseEntity<Object> deleteAccount(@RequestParam String email) {
+
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            return ResponseHandler.generateResponse(
+                    "User not found",
+                    HttpStatus.NOT_FOUND,
+                    null
+            );
+        }
+
+        userRepository.delete(user);
+
+        return ResponseHandler.generateResponse(
+                "Account deleted successfully",
+                HttpStatus.OK,
+                null
+        );
     }
 }

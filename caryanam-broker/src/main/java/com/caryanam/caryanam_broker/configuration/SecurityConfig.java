@@ -169,6 +169,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers( "/api/user/delete-account").permitAll()
                         .requestMatchers("/api/user/likeProperty/**","/api/user/likedProperties","/api/user/likedPropertiesCount").hasAnyRole("USER")
                         .requestMatchers(HttpMethod.GET, "/api/owner/getPropertyById/**")
                         .permitAll()
