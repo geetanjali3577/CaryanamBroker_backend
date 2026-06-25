@@ -1,6 +1,7 @@
 package com.caryanam.caryanam_broker.repository;
 
 import com.caryanam.caryanam_broker.entity.Property;
+import com.caryanam.caryanam_broker.entity.PropertyOwner;
 import com.caryanam.caryanam_broker.enums.PremiumStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,7 +14,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findByStatus(String active);
 
     List<Property> findByPropertyOwner_OwnerIdOrderByCreatedAtDesc(Long ownerId);
-
+    List<Property> findByPropertyOwner(PropertyOwner propertyOwner);
     List<Property> findByCityIgnoreCaseAndAddressIgnoreCaseAndStatus(String city, String address, String active);
 
     List<Property> findByCityIgnoreCaseAndStatus(String city, String active);
@@ -23,4 +24,6 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findByPremiumStatus(PremiumStatus status);
 
     List<Property> findByPremiumEndDateBeforeAndPremiumStatusIn(LocalDateTime dateTime, List<PremiumStatus> statuses);
+
+    void deleteByPropertyOwner(PropertyOwner propertyOwner);
 }

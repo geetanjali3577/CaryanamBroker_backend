@@ -7,6 +7,7 @@ import com.caryanam.caryanam_broker.entity.User;
 import com.caryanam.caryanam_broker.messageconfig.MessageConfig;
 import com.caryanam.caryanam_broker.repository.AdminRepository;
 import com.caryanam.caryanam_broker.repository.PropertyOwnerRepository;
+import com.caryanam.caryanam_broker.repository.PropertyRepository;
 import com.caryanam.caryanam_broker.repository.UserRepository;
 import com.caryanam.caryanam_broker.service.AuthService;
 
@@ -30,7 +31,8 @@ public class AuthController {
     @Autowired
     private AdminRepository adminRepository;
 
-
+    @Autowired
+    private PropertyRepository propertyRepository;
 
     @Autowired
     private PropertyOwnerRepository propertyOwnerRepository;
@@ -380,10 +382,10 @@ public class AuthController {
     @DeleteMapping("/delete-account")
     public ResponseEntity<Object> deleteAccount(@RequestParam String email) {
 
-        // Check User
         User user = userRepository.findByEmail(email).orElse(null);
 
         if (user != null) {
+
             userRepository.delete(user);
 
             return ResponseHandler.generateResponse(
@@ -393,10 +395,14 @@ public class AuthController {
             );
         }
 
-        // Check Property Owner
         PropertyOwner owner = propertyOwnerRepository.findByEmail(email).orElse(null);
 
         if (owner != null) {
+
+            // First delete all properties
+            propertyRepository.deleteByPropertyOwner(owner);
+
+            // Then delete owner
             propertyOwnerRepository.delete(owner);
 
             return ResponseHandler.generateResponse(
