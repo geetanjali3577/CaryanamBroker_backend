@@ -156,20 +156,18 @@ public class SecurityConfig {
                         .requestMatchers("/premium/callback", "/premium/verify/**", "/premium/payment-redirect").permitAll()
                         .requestMatchers("/premium/buy/**", "/premium/status/**").hasAnyRole("PROPERTY_OWNER", "ADMIN")
                         .requestMatchers("/admin/premium/**").hasRole("ADMIN")
-//                        .requestMatchers("/api/user/buyPremium/**").permitAll()
-                                .requestMatchers("/api/user/buyPremium/**")
-                                .hasAnyRole("USER","ADMIN")
+                        .requestMatchers("/api/user/buyPremium/**")
+                        .hasAnyRole("USER","ADMIN")
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/property-images/**").permitAll()
                         .requestMatchers("/api/owner/save-facilities","/api/owner/get-facilities").permitAll()
-
                         .requestMatchers("/api/area/**").permitAll()
                         .requestMatchers("/api/owner/getAreasByCity/**", "/api/owner/getPincode").permitAll()
                         .requestMatchers("/uploads/**", "/images/**", "/**/*.jpg", "/**/*.png", "/**/*.jpeg").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers( "/api/user/delete-account").permitAll()
+                       .requestMatchers( "/api/auth/delete-account").permitAll()
                         .requestMatchers("/api/user/likeProperty/**","/api/user/likedProperties","/api/user/likedPropertiesCount").hasAnyRole("USER")
                         .requestMatchers(HttpMethod.GET, "/api/owner/getPropertyById/**")
                         .permitAll()
@@ -187,14 +185,11 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(premiumCheckFilter, JwtFilter.class);
-        return http.build();
+                 return http.build();
     }
 
     @Bean
@@ -218,15 +213,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration config = new CorsConfiguration();
-//        config.setAllowedOrigins(List.of(
-//                "http://localhost:5173",
-//                "http://localhost:3000",
-//                "http://localhost:63342",
-//                "https://rentalchaavi.netlify.app",
-//                "https://r1.rentalchaavi.com",
-//                "https://r2.rentalchaavi.com",
-//                "https://rentalchaavi.com"
-//        ));
+
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",

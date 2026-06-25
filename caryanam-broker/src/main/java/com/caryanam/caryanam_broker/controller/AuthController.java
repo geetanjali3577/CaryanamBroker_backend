@@ -2,6 +2,8 @@ package com.caryanam.caryanam_broker.controller;
 
 
 import com.caryanam.caryanam_broker.dto.*;
+import com.caryanam.caryanam_broker.entity.PropertyOwner;
+import com.caryanam.caryanam_broker.entity.User;
 import com.caryanam.caryanam_broker.messageconfig.MessageConfig;
 import com.caryanam.caryanam_broker.repository.AdminRepository;
 import com.caryanam.caryanam_broker.repository.PropertyOwnerRepository;
@@ -11,6 +13,7 @@ import com.caryanam.caryanam_broker.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import com.caryanam.caryanam_broker.enums.Role;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -374,4 +377,39 @@ public class AuthController {
                         null));
     }
 
+    @DeleteMapping("/delete-account")
+    public ResponseEntity<Object> deleteAccount(@RequestParam String email) {
+
+        // Check User
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user != null) {
+            userRepository.delete(user);
+
+            return ResponseHandler.generateResponse(
+                    "User account deleted successfully",
+                    HttpStatus.OK,
+                    null
+            );
+        }
+
+        // Check Property Owner
+        PropertyOwner owner = propertyOwnerRepository.findByEmail(email).orElse(null);
+
+        if (owner != null) {
+            propertyOwnerRepository.delete(owner);
+
+            return ResponseHandler.generateResponse(
+                    "Property Owner account deleted successfully",
+                    HttpStatus.OK,
+                    null
+            );
+        }
+
+        return ResponseHandler.generateResponse(
+                "Account not found",
+                HttpStatus.NOT_FOUND,
+                null
+        );
+    }
 }
