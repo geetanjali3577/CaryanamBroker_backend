@@ -557,10 +557,7 @@ public class PhonePeServiceImpl implements PhonePeService {
     private final PropertyRepository propertyRepository;
     private final PropertyOwnerRepository propertyOwnerRepository;
 
-    /*
-      Production fixed premium amount.
-      Frontend/APK amount वर trust करू नये.
-    */
+
     private static final double PREMIUM_BASE_AMOUNT = 99.0;
     private static final double PREMIUM_GST_AMOUNT = 18.0;
     private static final double PREMIUM_TOTAL_AMOUNT = 117.0;
@@ -773,7 +770,7 @@ public class PhonePeServiceImpl implements PhonePeService {
 
     @Override
     public void propertyPaymentSuccess(String orderId, String transactionId) {
-        // Property payment handled by mobile verify / existing webhook flow.
+
     }
 
     // ================= MOBILE SDK: Create Order Token =================

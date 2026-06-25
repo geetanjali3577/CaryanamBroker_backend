@@ -40,4 +40,5 @@ public interface PropertyService {
 
     Integer getUserLikedPropertiesCount(Long userId);
     String markPropertyAsRented(Long propertyId);
+    String markPropertyAsAvailable(Long propertyId);
 }

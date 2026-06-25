@@ -1877,4 +1877,24 @@ public class PropertyServiceImpl implements PropertyService {
 
         return "Property Marked As RENTED Successfully";
     }
+
+    @Override
+    public String markPropertyAsAvailable(Long propertyId) {
+
+        Property property = propertyRepository.findById(propertyId).orElse(null);
+
+        if (property == null) {
+            return MessageConfig.PROPERTY_NOT_FOUND;
+        }
+
+        property.setRented(false);
+        property.setPaymentStatus("UNPAID");
+        property.setPremiumStatus(PremiumStatus.NONE);
+        property.setPremiumActive(false);
+        property.setStatus(AppConstants.PENDING);
+
+        propertyRepository.save(property);
+
+        return "Property marked as AVAILABLE. Please complete payment.";
+    }
 }
